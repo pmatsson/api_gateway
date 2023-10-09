@@ -1,13 +1,13 @@
-from flask_marshmallow.sqla import SQLAlchemyAutoSchema
-from adsws.auth.model import User
 import datetime
 from dataclasses import dataclass, field
-import marshmallow.validate
 
-from flask_marshmallow.sqla import SQLAlchemySchema, auto_field
-from marshmallow import fields
-from adsws.auth.oauth2.model import OAuth2Token
+import marshmallow.validate
 import marshmallow_dataclass
+from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemySchema, auto_field
+from marshmallow import fields
+
+from adsws.auth.model import User
+from adsws.auth.oauth2.model import OAuth2Token
 
 
 class UserSchema(SQLAlchemyAutoSchema):
@@ -19,7 +19,9 @@ class UserSchema(SQLAlchemyAutoSchema):
 @dataclass
 class BootstrapGetRequestSchema:
     scope: str = field(default=None)
-    ratelimit: float = field(default=1.0, metadata={"validate": marshmallow.validate.Range(min=0.0)})
+    ratelimit: float = field(
+        default=1.0, metadata={"validate": marshmallow.validate.Range(min=0.0)}
+    )
     create_new: bool = field(default=False)
     redirect_uri: str = field(default=None)
     client_name: str = field(default=None)

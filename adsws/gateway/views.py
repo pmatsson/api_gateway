@@ -1,8 +1,9 @@
-from urllib.parse import urljoin
 from typing import Tuple
-from flask import request, current_app
-from flask.views import View
+from urllib.parse import urljoin
+
 import requests
+from flask import current_app, request
+from flask.views import View
 
 
 class ProxyView(View):
@@ -41,11 +42,18 @@ class ProxyView(View):
             remote_url = self._construct_remote_url()
             http_method_func = getattr(self._session, request.method.lower())
 
-            current_app.logger.debug("Proxying %s request to %s", request.method.upper(), remote_url)
+            current_app.logger.debug(
+                "Proxying %s request to %s", request.method.upper(), remote_url
+            )
 
-            response: requests.Response = http_method_func(remote_url, data=request.get_data(), headers=request.headers)
+            response: requests.Response = http_method_func(
+                remote_url, data=request.get_data(), headers=request.headers
+            )
             return response.content, response.status_code
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ):
             return b"504 Gateway Timeout", 504
 
     def _construct_remote_url(self) -> str:

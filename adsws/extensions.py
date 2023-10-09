@@ -1,12 +1,13 @@
-from flask_sqlalchemy import SQLAlchemy as FlaskSQLAlchemy
 from authlib.integrations.flask_oauth2 import AuthorizationServer
-from adsws.gateway.service import GatewayService
-from adsws.auth.service import AuthService
-from flask_restful import Api
 from flask_alembic import Alembic
-from adsws.model import base_model
 from flask_login import LoginManager
 from flask_marshmallow import Marshmallow
+from flask_restful import Api
+from flask_sqlalchemy import SQLAlchemy as FlaskSQLAlchemy
+
+from adsws.auth.service import AuthService
+from adsws.gateway.service import GatewayService
+from adsws.model import base_model
 
 # Database
 alembic = Alembic()

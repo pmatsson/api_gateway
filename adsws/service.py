@@ -1,5 +1,6 @@
 """ Module containing the base class for ADSWS services. """
 import logging
+
 from flask import Flask
 
 

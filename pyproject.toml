@@ -1,0 +1,124 @@
+[project]
+name = "adsws"
+version = "0.0.1"
+description = "Project description - replace"
+authors = [{ name = "Philip Matsson", email = "philip@winterway.eu" }]
+license = { text = "MIT" }
+readme = "README.md"
+repository = "https://github.com/adsabs/api_gateway"
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries",
+]
+
+packages = ["adsws"]
+
+dependencies = [
+    'click>=8.0.3',
+    'adsmutils@git+https://github.com/adsabs/ADSMicroserviceUtils.git@v1.2.3',
+    'alembic==1.12.0',
+    'aniso8601==9.0.1',
+    'async-timeout==4.0.3',
+    'authlib==1.2.1',
+    'blinker==1.6.2',
+    'certifi==2023.7.22',
+    'cffi==1.16.0',
+    'charset-normalizer==3.3.0',
+    'click==8.1.7',
+    'concurrentloghandler==0.9.1',
+    'cryptography==41.0.4',
+    'datetime==4.3',
+    'dnspython==2.4.2',
+    'email-validator==2.0.0.post2',
+    'flask==1.1.2',
+    'flask-alembic==2.0.1',
+    'flask-discoverer==0.1.5',
+    'flask-login==0.6.2',
+    'flask-marshmallow==0.14.0',
+    'flask-principal==0.4.0',
+    'flask-restful==0.3.8',
+    'flask-security-too==4.1.6',
+    'flask-sqlalchemy==2.4.4',
+    'flask-wtf==1.2.1',
+    'idna==3.4',
+    'itsdangerous==2.0.1',
+    'jinja2==3.0.3',
+    'mako==1.2.4',
+    'markupsafe==2.1.3',
+    'marshmallow==3.20.1',
+    'marshmallow-sqlalchemy==0.28.2',
+    'packaging==23.2',
+    'passlib==1.7.4',
+    'portalocker==2.8.2',
+    'pycparser==2.21',
+    'python-dateutil==2.8.2',
+    'python-json-logger==2.0.1',
+    'pytz==2023.3.post1',
+    'redis==5.0.1',
+    'requests==2.31.0',
+    'six==1.16.0',
+    'sqlalchemy==1.3.20',
+    'sqlalchemy-utils==0.41.1',
+    'typing-extensions==4.8.0',
+    'urllib3==2.0.6',
+    'werkzeug==2.0.3',
+    'wtforms==3.0.1',
+    'zope-interface==6.0'
+]
+
+[project.urls]
+Source = "https://github.com/adsabs/api_gateway"
+
+[project.optional-dependencies]
+dev = [
+    'black==22.3.0',
+    'flake8==4.0.1',
+    'isort==5.12.0',
+    'pytest==6.2.5',
+    'pyupgrade==2.29.1',
+    'pytest-mock==3.6.1',
+    'pre-commit==2.16.0',
+    'coveralls==3.3.1',
+    'mock==4.0.3',
+    'coverage==6.2',
+    'pytest-cov==3.0.0',
+    'pytest-cookies==0.6.1',
+]
+
+[tool.pytest.ini_options]
+addopts = "-v -Wdefault --cov=<package_name>"
+cache_dir = ".tmp/"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+data_file = ".tmp/.coverage"
+
+[tool.coverage.report]
+skip_empty = true
+skip_covered = true
+
+[tool.isort]
+profile = "black"
+known_first_party = ["<package_name>", "tests"]
+
+[tool.black]
+line-length = 99 # override black's default line-length
+
+[build-system]
+requires = [
+    "setuptools",
+    "wheel",
+    "flit_core >=3.2,<4",
+    "ppsetuptools==2.0.2"
+]
+build-backend = "flit_core.buildapi"
+#build-backend = "setuptools.build_meta"
+
+# see setup.py for explanation of these
+[xsetup.entry_points]
+console_scripts = ["adsingestp=adsingestp.cli:cli"]
+[xsetup]
+scripts = []

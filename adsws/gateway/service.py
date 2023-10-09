@@ -1,8 +1,10 @@
 """ This module defines the GatewayService class. """
+import os
 from typing import TypedDict
 from urllib.parse import urljoin
-import os
+
 import requests
+
 from adsws.gateway.views import ProxyView
 from adsws.service import ADSWSService
 
@@ -38,14 +40,19 @@ class GatewayService(ADSWSService):
         for remote_path, properties in resource_json.items():
             self._logger.debug("Registering resource %s", remote_path)
 
-            properties.setdefault("rate_limit", self.get_config("DEFAULT_RATE_LIMIT", [1000, 86400]))
+            properties.setdefault(
+                "rate_limit",
+                self.get_config("DEFAULT_RATE_LIMIT", [1000, 86400]),
+            )
             properties.setdefault("scopes", self.get_config("DEFAULT_SCOPES", []))
 
             rule_name = local_path = os.path.join(deploy_path, remote_path[1:])
             self._app.add_url_rule(
                 rule_name,
                 endpoint=local_path,
-                view_func=self.auth_service.require_oauth()(ProxyView.as_view(rule_name, deploy_path, base_url)),
+                view_func=self.auth_service.require_oauth()(
+                    ProxyView.as_view(rule_name, deploy_path, base_url)
+                ),
                 methods=properties["methods"],
             )
 
@@ -65,5 +72,8 @@ class GatewayService(ADSWSService):
         try:
             response = requests.get(resource_url, timeout=self.get_config("RESOURCE_TIMEOUT", 5))
             return response.json()
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as ex:
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ) as ex:
             raise ex

@@ -1,8 +1,9 @@
 import sqlalchemy as sa
-from flask import current_app
-from werkzeug.security import gen_salt
-from sqlalchemy.orm import relationship
 from authlib.integrations.sqla_oauth2 import OAuth2ClientMixin, OAuth2TokenMixin
+from flask import current_app
+from sqlalchemy.orm import relationship
+from werkzeug.security import gen_salt
+
 from adsws.model import base_model
 
 

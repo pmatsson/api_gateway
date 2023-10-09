@@ -1,6 +1,5 @@
 from os import environ
 
-
 # General
 DEBUG = True
 

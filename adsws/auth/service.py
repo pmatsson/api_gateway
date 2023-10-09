@@ -1,14 +1,14 @@
-from adsws.service import ADSWSService
-from flask import Flask
 import datetime
+
+from authlib.integrations.flask_oauth2 import ResourceProtector
+from authlib.integrations.sqla_oauth2 import create_bearer_token_validator
+from flask import Flask
 from flask_login import current_user
 from werkzeug.security import gen_salt
-from authlib.integrations.flask_oauth2 import ResourceProtector
-from adsws.auth.oauth2.model import OAuth2Token, OAuth2Client
+
+from adsws.auth.oauth2.model import OAuth2Client, OAuth2Token
 from adsws.exceptions import NoClientError
-from authlib.integrations.sqla_oauth2 import (
-    create_bearer_token_validator,
-)
+from adsws.service import ADSWSService
 
 
 class AuthService(ADSWSService):

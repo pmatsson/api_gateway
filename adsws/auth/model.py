@@ -1,9 +1,10 @@
+import sqlalchemy as sa
 from flask import current_app
 from flask_security import UserMixin
 from flask_security.utils import hash_password, verify_password
-import sqlalchemy as sa
-from adsws.model import base_model
 from sqlalchemy.ext.hybrid import hybrid_property
+
+from adsws.model import base_model
 
 
 class User(base_model, UserMixin):

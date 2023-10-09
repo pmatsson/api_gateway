@@ -1,10 +1,23 @@
-from flask import Flask, session
 from adsmutils import ADSFlask
-from adsws.extensions import gateway_service, db, oauth2_server, auth_service, flask_api, alembic, login_manager, ma
-from adsws.auth.oauth2.model import OAuth2Client, OAuth2Token
-from authlib.integrations.sqla_oauth2 import create_query_client_func, create_save_token_func
-from adsws.auth.views import Bootstrap
+from authlib.integrations.sqla_oauth2 import (
+    create_query_client_func,
+    create_save_token_func,
+)
+from flask import Flask, session
+
 from adsws.auth.model import User
+from adsws.auth.oauth2.model import OAuth2Client, OAuth2Token
+from adsws.auth.views import Bootstrap
+from adsws.extensions import (
+    alembic,
+    auth_service,
+    db,
+    flask_api,
+    gateway_service,
+    login_manager,
+    ma,
+    oauth2_server,
+)
 
 
 def register_extensions(app: Flask):
