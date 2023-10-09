@@ -8,7 +8,8 @@ class ADSWSService:
 
     def __init__(self, name: str, app: Flask = None):
         self._name = name
-        self.init_app(app)
+        if app is not None:
+            self.init_app(app)
 
     def init_app(self, app: Flask):
         """_summary_

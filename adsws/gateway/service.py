@@ -4,15 +4,15 @@ from urllib.parse import urljoin
 import os
 import requests
 from adsws.gateway.views import ProxyView
-
 from adsws.service import ADSWSService
 
 
 class GatewayService(ADSWSService):
     """A class for registering remote webservices and resources with the Flask application."""
 
-    def __init__(self, name: str = "GATEWAY"):
+    def __init__(self, auth_service: ADSWSService, name: str = "GATEWAY"):
         super().__init__(name)
+        self.auth_service = auth_service
 
     def register_services(self):
         """Registers all services specified in the configuration file."""
@@ -45,7 +45,7 @@ class GatewayService(ADSWSService):
             self._app.add_url_rule(
                 rule_name,
                 endpoint=local_path,
-                view_func=ProxyView.as_view(rule_name, deploy_path, base_url),
+                view_func=self.auth_service.require_oauth()(ProxyView.as_view(rule_name, deploy_path, base_url)),
                 methods=properties["methods"],
             )
 
@@ -59,6 +59,7 @@ class GatewayService(ADSWSService):
         Returns:
             A dictionary containing the resource document.
         """
+
         resource_url = urljoin(base_url, self.get_config("RESOURCE_ENDPOINT", "/"))
 
         try:
