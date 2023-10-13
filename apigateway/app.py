@@ -6,20 +6,19 @@ from authlib.integrations.sqla_oauth2 import (
 from flask import Flask, session
 from flask_security import SQLAlchemyUserDatastore
 
-from adsws.auth.model import Role, User
-from adsws.auth.oauth2.model import OAuth2Client, OAuth2Token
-from adsws.auth.views import Bootstrap, UserAuthView
-from adsws.extensions import (
+from apigateway.extensions import (
     alembic,
     auth_service,
     db,
     flask_api,
     flask_security,
-    gateway_service,
     login_manager,
     ma,
     oauth2_server,
+    proxy_service,
 )
+from apigateway.model import OAuth2Client, OAuth2Token, Role, User
+from apigateway.views import Bootstrap, UserAuthView
 
 
 def register_extensions(app: Flask):
@@ -44,7 +43,7 @@ def register_extensions(app: Flask):
 
     auth_service.init_app(app)
     login_manager.init_app(app)
-    gateway_service.init_app(app)
+    proxy_service.init_app(app)
 
     flask_api.init_app(app)
 
@@ -84,6 +83,6 @@ def create_app():
     register_extensions(app)
     register_hooks(app)
 
-    gateway_service.register_services()
+    proxy_service.register_services()
 
     return app

@@ -1,6 +1,6 @@
 from werkzeug.serving import run_simple
 
-from adsws.app import create_app
+from apigateway.app import create_app
 
 if __name__ == "__main__":
     run_simple(

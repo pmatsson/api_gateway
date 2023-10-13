@@ -6,8 +6,7 @@ import marshmallow_dataclass
 from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemySchema, auto_field
 from marshmallow import fields
 
-from adsws.auth.model import User
-from adsws.auth.oauth2.model import OAuth2Token
+from apigateway.model import OAuth2Token, User
 
 
 class UserSchema(SQLAlchemyAutoSchema):

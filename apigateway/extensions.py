@@ -6,9 +6,8 @@ from flask_restful import Api
 from flask_security import Security
 from flask_sqlalchemy import SQLAlchemy as FlaskSQLAlchemy
 
-from adsws.auth.service import AuthService
-from adsws.gateway.service import GatewayService
-from adsws.model import base_model
+from apigateway.model import base_model
+from apigateway.service import AuthService, ProxyService
 
 # Database
 alembic = Alembic()
@@ -22,7 +21,7 @@ flask_security = Security()
 
 # Services
 auth_service = AuthService()
-gateway_service = GatewayService(auth_service)
+proxy_service = ProxyService(auth_service)
 
 # Other
 flask_api = Api()
