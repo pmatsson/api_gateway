@@ -50,10 +50,7 @@ class ProxyView(View):
                 remote_url, data=request.get_data(), headers=request.headers
             )
             return response.content, response.status_code
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout,
-        ):
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
             return b"504 Gateway Timeout", 504
 
     def _construct_remote_url(self) -> str:

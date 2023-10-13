@@ -72,8 +72,5 @@ class GatewayService(ADSWSService):
         try:
             response = requests.get(resource_url, timeout=self.get_config("RESOURCE_TIMEOUT", 5))
             return response.json()
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout,
-        ) as ex:
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as ex:
             raise ex

@@ -1,4 +1,5 @@
 import sqlalchemy as sa
+from authlib.common.encoding import json_loads
 from authlib.integrations.sqla_oauth2 import OAuth2ClientMixin, OAuth2TokenMixin
 from flask import current_app
 from sqlalchemy.orm import relationship
@@ -13,6 +14,7 @@ class OAuth2Client(base_model, OAuth2ClientMixin):
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     user_id = sa.Column(sa.Integer, sa.ForeignKey("user.fs_uniquifier", ondelete="CASCADE"))
     user = relationship("User")
+    ratelimit = sa.Column(sa.Float, default=0.0)
 
     def gen_salt(self):
         self.reset_client_id()

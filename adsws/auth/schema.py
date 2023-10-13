@@ -49,3 +49,12 @@ class BootstrapGetResponseSchema(SQLAlchemySchema):
 
 bootstrap_get_request_schema = marshmallow_dataclass.class_schema(BootstrapGetRequestSchema)()
 bootstrap_get_response_schema = BootstrapGetResponseSchema()
+
+
+@dataclass
+class UserAuthPostRequestSchema:
+    email: str = field(metadata={"validate": marshmallow.validate.Email()})
+    password: str = field()
+
+
+user_auth_post_request_schema = marshmallow_dataclass.class_schema(UserAuthPostRequestSchema)()

@@ -4,15 +4,17 @@ from authlib.integrations.sqla_oauth2 import (
     create_save_token_func,
 )
 from flask import Flask, session
+from flask_security import SQLAlchemyUserDatastore
 
-from adsws.auth.model import User
+from adsws.auth.model import Role, User
 from adsws.auth.oauth2.model import OAuth2Client, OAuth2Token
-from adsws.auth.views import Bootstrap
+from adsws.auth.views import Bootstrap, UserAuthView
 from adsws.extensions import (
     alembic,
     auth_service,
     db,
     flask_api,
+    flask_security,
     gateway_service,
     login_manager,
     ma,
@@ -36,6 +38,10 @@ def register_extensions(app: Flask):
         query_client=create_query_client_func(db.session, OAuth2Client),
         save_token=create_save_token_func(db.session, OAuth2Token),
     )
+
+    user_datastore = SQLAlchemyUserDatastore(db, User, Role)
+    flask_security.init_app(app, user_datastore)
+
     auth_service.init_app(app)
     login_manager.init_app(app)
     gateway_service.init_app(app)
@@ -60,7 +66,9 @@ def register_hooks(app: Flask):
 
 
 def register_views():
+    """Registers the views for the Flask application."""
     flask_api.add_resource(Bootstrap, "/bootstrap")
+    flask_api.add_resource(UserAuthView, "/user")
 
 
 def create_app():

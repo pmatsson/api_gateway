@@ -1,6 +1,6 @@
 import sqlalchemy as sa
 from flask import current_app
-from flask_security import UserMixin
+from flask_security import RoleMixin, UserMixin
 from flask_security.utils import hash_password, verify_password
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -39,3 +39,17 @@ class User(base_model, UserMixin):
 
     def validate_password(self, password) -> bool:
         return verify_password(password, self.password)
+
+
+class Role(base_model, RoleMixin):
+    __tablename__ = "role"
+
+    id = sa.Column(sa.Integer(), primary_key=True)
+    name = sa.Column(sa.String(80), unique=True)
+    description = sa.Column(sa.String(255))
+
+    def __eq__(self, other):
+        return self.name == other or self.name == getattr(other, "name", None)
+
+    def __ne__(self, other):
+        return self.name != other and self.name != getattr(other, "name", None)
