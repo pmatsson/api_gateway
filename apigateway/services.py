@@ -2,19 +2,26 @@
 import datetime
 import logging
 import os
-from typing import Tuple, TypedDict
+import time
+from contextlib import suppress
+from typing import Callable, Optional, Tuple, TypedDict, Union
 from urllib.parse import urljoin
 
 import requests
 from authlib.integrations.flask_oauth2 import ResourceProtector
 from authlib.integrations.sqla_oauth2 import create_bearer_token_validator
-from flask import Flask
+from flask import Flask, g, request
+from flask.wrappers import Response
+from flask_limiter import Limiter
+from flask_limiter.extension import LimitDecorator
+from flask_limiter.util import get_remote_address
 from flask_login import current_user
+from redis import Redis, StrictRedis
 from sqlalchemy import func
 from werkzeug.security import gen_salt
 
 from apigateway.exceptions import NoClientError, ValidationError
-from apigateway.model import OAuth2Client, OAuth2Token
+from apigateway.models import OAuth2Client, OAuth2Token
 from apigateway.views import ProxyView
 
 
@@ -43,9 +50,9 @@ class GatewayService:
 
         app.extensions[self._name.lower()] = self
 
-        app.__setattr__(f"{self._name.lower()}_service", self)
+        app.__setattr__(self._name.lower(), self)
 
-    def get_config(self, key: str, default: any = None):
+    def get_service_config(self, key: str, default: any = None):
         """_summary_
 
         Args:
@@ -61,7 +68,7 @@ class GatewayService:
 class AuthService(GatewayService):
     """A class that provides authentication services for the API Gateway."""
 
-    def __init__(self, name: str = "AUTH"):
+    def __init__(self, name: str = "AUTH_SERVICE"):
         """Initializes the AuthService.
 
         Args:
@@ -276,13 +283,12 @@ class AuthService(GatewayService):
 class ProxyService(GatewayService):
     """A class for registering remote webservices and resources with the Flask application."""
 
-    def __init__(self, auth_service: GatewayService, name: str = "PROXY"):
+    def __init__(self, name: str = "PROXY_SERVICE"):
         super().__init__(name)
-        self.auth_service = auth_service
 
     def register_services(self):
         """Registers all services specified in the configuration file."""
-        services = self.get_config("WEBSERVICES", {})
+        services = self.get_service_config("WEBSERVICES", {})
         for url, deploy_path in services.items():
             self.register_service(url, deploy_path)
 
@@ -306,17 +312,30 @@ class ProxyService(GatewayService):
 
             properties.setdefault(
                 "rate_limit",
-                self.get_config("DEFAULT_RATE_LIMIT", [1000, 86400]),
+                self.get_service_config("DEFAULT_RATE_LIMIT", [1000, 86400]),
             )
-            properties.setdefault("scopes", self.get_config("DEFAULT_SCOPES", []))
+            properties.setdefault("scopes", self.get_service_config("DEFAULT_SCOPES", []))
 
             rule_name = local_path = os.path.join(deploy_path, remote_path[1:])
+
+            counts = properties["rate_limit"][0]
+            per_second = properties["rate_limit"][1]
+            limiter_decorator = self._app.limiter_service.shared_limit(
+                counts=counts, per_second=per_second
+            )
+
+            auth_decorator = self._app.auth_service.require_oauth()
+
+            decorated_view_func = limiter_decorator(
+                auth_decorator(
+                    ProxyView.as_view(rule_name, deploy_path, base_url),
+                )
+            )
+
             self._app.add_url_rule(
                 rule_name,
                 endpoint=local_path,
-                view_func=self.auth_service.require_oauth()(
-                    ProxyView.as_view(rule_name, deploy_path, base_url)
-                ),
+                view_func=decorated_view_func,
                 methods=properties["methods"],
             )
 
@@ -331,10 +350,246 @@ class ProxyService(GatewayService):
             A dictionary containing the resource document.
         """
 
-        resource_url = urljoin(base_url, self.get_config("RESOURCE_ENDPOINT", "/"))
+        resource_url = urljoin(base_url, self.get_service_config("RESOURCE_ENDPOINT", "/"))
 
         try:
-            response = requests.get(resource_url, timeout=self.get_config("RESOURCE_TIMEOUT", 5))
+            response = requests.get(
+                resource_url, timeout=self.get_service_config("RESOURCE_TIMEOUT", 5)
+            )
             return response.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as ex:
             raise ex
+
+
+class LimiterService(GatewayService, Limiter):
+    """A service that provides rate limiting functionality for API endpoints.
+
+    This service extends the `GatewayService` and `Limiter` classes to provide rate limiting functionality
+    for API endpoints. It defines methods for registering hooks to track request processing time and
+    shared limits for rate limiting.
+
+    Attributes:
+        _symbolic_ratelimits (dict): A dictionary of symbolic rate limits for API endpoints.
+        test (int): A test attribute for the class.
+    """
+
+    def __init__(self, name: str = "LIMITER_SERVICE"):
+        """Initializes a new instance of the `LimiterService` class.
+
+        Args:
+            name (str, optional): The name of the service. Defaults to "LIMITER_SERVICE".
+        """
+        GatewayService.__init__(self, name)
+        Limiter.__init__(self, key_func=self._key_func)
+        self._symbolic_ratelimits = {}
+        self.test = 1
+
+    def init_app(self, app: Flask):
+        """Initializes the service with the specified Flask application.
+
+        This method initializes the service with the specified Flask application by setting default
+        configuration values and registering hooks.
+
+        Args:
+            app (Flask): The Flask application to initialize the service with.
+        """
+        GatewayService.init_app(self, app)
+
+        app.config.setdefault("RATELIMIT_STORAGE_URI", self.get_service_config("STORAGE_URI"))
+        app.config.setdefault("RATELIMIT_STRATEGY", self.get_service_config("STRATEGY"))
+
+        Limiter.init_app(self, app)
+
+        self.register_hooks(app)
+
+    def register_hooks(self, app: Flask):
+        """Registers hooks for tracking request processing time.
+
+        This method registers hooks for tracking request processing time before and after each request.
+
+        Args:
+            app (Flask): The Flask application to register the hooks with.
+        """
+
+        @app.before_request
+        def _before_request_hook():
+            g.request_start_time = time.time()
+
+        @app.after_request
+        def _after_request_hook(response: Response):
+            processing_time: float = time.time() - g.request_start_time
+
+            key: str = f"{self._name}//{request.endpoint}/time"
+
+            existing_value: float = float(self._app.redis_service.get(key) or -1)
+            if existing_value < 0:
+                self._app.redis_service.set(key, processing_time)
+            else:
+                mean_value = (existing_value + processing_time) / 2
+                self._app.redis_service.incrbyfloat(key, mean_value - existing_value)
+
+            return response
+
+    def shared_limit(
+        self,
+        limit_value: Optional[str] = None,
+        counts: Optional[int] = None,
+        per_second: Optional[int] = None,
+        scope: Optional[str] = None,
+        key_func: Optional[Callable[[], str]] = None,
+        error_message: Optional[str] = None,
+        exempt_when: Optional[Callable[[], bool]] = None,
+        override_defaults: bool = True,
+        deduct_when: Optional[Callable[[Response], bool]] = None,
+        cost: Optional[Union[int, Callable[[], int]]] = None,
+    ) -> LimitDecorator:
+        """Decorator to be applied to multiple routes sharing the same rate limit.
+
+        Args:
+            limit_value (Optional[str], optional): The limit value for the rate limit. Either this or
+                counts and per_second must be provided. Defaults to None.
+            counts (Optional[int], optional): The number of counts for the rate limit. Defaults to None.
+            per_second (Optional[int], optional): The number of counts per second for the rate limit.
+                Defaults to None.
+            scope (Optional[str], optional): The scope of the rate limit. Defaults to None.
+            key_func (Optional[Callable[[], str]], optional): The key function for the rate limit.
+                Defaults to None.
+            error_message (Optional[str], optional): The error message for the rate limit. Defaults to None.
+            exempt_when (Optional[Callable[[], bool]], optional): The exempt when function for the rate
+                limit. Defaults to None.
+            override_defaults (bool, optional): Whether to override the default values for the rate limit.
+                Defaults to True.
+            deduct_when (Optional[Callable[[Response], bool]], optional): The deduct when function for
+                the rate limit. Defaults to None.
+            cost (Optional[Union[int, Callable[[], int]]], optional): The cost function for the rate limit.
+                Defaults to None.
+
+        Raises:
+            ValueError: If neither limit_value nor counts and per_second are provided.
+
+        Returns:
+            LimitDecorator: The rate limit decorator.
+        """
+        if limit_value is None and (counts is None or per_second is None):
+            raise ValueError("Either limit_value or counts and per_second must be provided")
+
+        return Limiter.shared_limit(
+            self,
+            limit_value if limit_value else lambda: self.calculate_limit_value(counts, per_second),
+            scope if scope else self._scope_func,
+            key_func=key_func if key_func else self._key_func,
+            error_message=error_message,
+            exempt_when=exempt_when,
+            override_defaults=override_defaults,
+            deduct_when=deduct_when,
+            cost=cost if cost else self._cost_func,
+        )
+
+    def calculate_limit_value(self, counts: int, per_second: int) -> str:
+        """Calculates the limit string for the specified counts and per second values.
+
+        Args:
+            counts (int): The maximum number of requests allowed per `per_second`.
+            per_second (int): The time window in seconds for the rate limit.
+        Returns:
+            str: The limit string value for the rate limit.
+        """
+        factor = 1
+        with suppress(AttributeError):
+            factor = request.oauth.client.ratelimit
+
+        if request.endpoint in self._symbolic_ratelimits:
+            counts: int = self._symbolic_ratelimits[request.endpoint]["count"]
+            per_second: int = self._symbolic_ratelimits[request.endpoint]["per_second"]
+
+        return "{0}/{1} second".format(int(counts * factor), per_second)
+
+    def _cost_func(self) -> int:
+        """Calculates the cost for the rate limit.
+
+        This method calculates the cost for the rate limit based on the processing time of the request.
+
+        Returns:
+            int: The cost for the rate limit.
+        """
+        processing_time_seconds = float(
+            self._app.redis_service.get(f"{self._name}//{request.endpoint}/time") or 0
+        )
+
+        return 1 if processing_time_seconds <= 1 else int(2 ** (processing_time_seconds - 1))
+
+    def _key_func(self) -> str:
+        """Returns the key for the rate limit.
+
+        This method returns the key for the rate limit based on the API endpoint.
+
+        Returns:
+            str: The key for the rate limit.
+        """
+        if request.endpoint in self._symbolic_ratelimits:
+            return self._symbolic_ratelimits[request.endpoint]["key"]
+        return request.endpoint
+
+    def _scope_func(self, endpoint_name: str) -> str:
+        """Returns the scope for the rate limit.
+
+        This method returns the scope for the rate limit based on the OAuth user.
+        If the user coild not be determined the remote address is used.
+
+        Args:
+            endpoint_name (str): The name of the API endpoint.
+
+        Returns:
+            str: The scope for the rate limit.
+        """
+        if hasattr(request, "oauth") and request.oauth.client:
+            return "{email}:{client}".format(
+                email=request.oauth.user.email, client=request.oauth.client.client_id
+            )
+
+        elif current_user.is_authenticated and not current_user.is_bootstrap_user:
+            return "{email}".format(email=current_user.email)
+
+        else:
+            return get_remote_address()
+
+
+class RedisService(GatewayService):
+    """A service class for interacting with a Redis database.
+
+    Args:
+        name (str): The name of the service.
+        strict (bool): Whether to use strict Redis or not.
+        **kwargs: Additional keyword arguments to pass to the Redis client.
+
+    """
+
+    def __init__(self, name: str = "REDIS_SERVICE", strict: bool = True, **kwargs):
+        super().__init__(name)
+        self._redis_client = None
+        self._provider_class = StrictRedis if strict else Redis
+        self._provider_kwargs = kwargs
+
+    def init_app(self, app: Flask):
+        super().init_app(app)
+
+        redis_url = self.get_service_config("URL", "redis://localhost:6379/0")
+        self._redis_client = self._provider_class.from_url(redis_url, **self._provider_kwargs)
+
+    def get_connection_pool(self):
+        if self._redis_client:
+            return self._redis_client.connection_pool
+        else:
+            return None
+
+    def __getattr__(self, name):
+        return getattr(self._redis_client, name, None)
+
+    def __getitem__(self, name):
+        return self._redis_client[name]
+
+    def __setitem__(self, name, value):
+        self._redis_client[name] = value
+
+    def __delitem__(self, name):
+        del self._redis_client[name]

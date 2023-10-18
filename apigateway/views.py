@@ -8,8 +8,8 @@ from flask.views import View
 from flask_login import current_user, login_user, logout_user
 from flask_restful import Resource, abort
 
-from apigateway.model import User
-from apigateway.schema import (
+from apigateway.models import User
+from apigateway.schemas import (
     bootstrap_get_request_schema,
     bootstrap_get_response_schema,
     user_auth_post_request_schema,

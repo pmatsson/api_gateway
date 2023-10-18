@@ -12,12 +12,14 @@ from apigateway.extensions import (
     db,
     flask_api,
     flask_security,
+    limiter_service,
     login_manager,
     ma,
     oauth2_server,
     proxy_service,
+    redis_service,
 )
-from apigateway.model import OAuth2Client, OAuth2Token, Role, User
+from apigateway.models import OAuth2Client, OAuth2Token, Role, User
 from apigateway.views import Bootstrap, UserAuthView
 
 
@@ -40,10 +42,12 @@ def register_extensions(app: Flask):
 
     user_datastore = SQLAlchemyUserDatastore(db, User, Role)
     flask_security.init_app(app, user_datastore)
+    login_manager.init_app(app)
 
     auth_service.init_app(app)
-    login_manager.init_app(app)
     proxy_service.init_app(app)
+    redis_service.init_app(app)
+    limiter_service.init_app(app)
 
     flask_api.init_app(app)
 
