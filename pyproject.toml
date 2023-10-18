@@ -1,5 +1,5 @@
 [project]
-name = "adsws"
+name = "apigateway"
 version = "0.0.1"
 description = "Project description - replace"
 authors = [{ name = "Philip Matsson", email = "philip@winterway.eu" }]
@@ -14,59 +14,20 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 
-packages = ["adsws"]
+packages = ["apigateway"]
 
 dependencies = [
-    'click>=8.0.3',
-    'adsmutils@git+https://github.com/adsabs/ADSMicroserviceUtils.git@v1.2.3',
-    'alembic==1.12.0',
-    'aniso8601==9.0.1',
-    'async-timeout==4.0.3',
-    'authlib==1.2.1',
-    'blinker==1.6.2',
-    'certifi==2023.7.22',
-    'cffi==1.16.0',
-    'charset-normalizer==3.3.0',
-    'click==8.1.7',
-    'concurrentloghandler==0.9.1',
-    'cryptography==41.0.4',
-    'datetime==4.3',
-    'dnspython==2.4.2',
-    'email-validator==2.0.0.post2',
-    'flask==1.1.2',
-    'flask-alembic==2.0.1',
-    'flask-discoverer==0.1.5',
-    'flask-login==0.6.2',
+    'adsmutils@git+https://github.com/pmatsson/ADSMicroserviceUtils.git@3be8fef87414e2d7718689e4763d6e2ea12c21d5',
+    'authlib',
+    'flask-alembic',
+    'flask-limiter>=2.2.0',
     'flask-marshmallow==0.14.0',
-    'flask-principal==0.4.0',
-    'flask-restful==0.3.8',
-    'flask-security-too==4.1.6',
-    'flask-sqlalchemy==2.4.4',
-    'flask-wtf==1.2.1',
-    'idna==3.4',
-    'itsdangerous==2.0.1',
-    'jinja2==3.0.3',
-    'mako==1.2.4',
-    'markupsafe==2.1.3',
-    'marshmallow==3.20.1',
-    'marshmallow-sqlalchemy==0.28.2',
-    'packaging==23.2',
-    'passlib==1.7.4',
+    'flask-security-too',
+    'marshmallow-dataclass',
+    'marshmallow-sqlalchemy',
     'portalocker==2.8.2',
-    'pycparser==2.21',
-    'python-dateutil==2.8.2',
-    'python-json-logger==2.0.1',
-    'pytz==2023.3.post1',
-    'redis==5.0.1',
-    'requests==2.31.0',
-    'six==1.16.0',
-    'sqlalchemy==1.3.20',
-    'sqlalchemy-utils==0.41.1',
-    'typing-extensions==4.8.0',
-    'urllib3==2.0.6',
-    'werkzeug==2.0.3',
-    'wtforms==3.0.1',
-    'zope-interface==6.0'
+    'redis',
+    'sqlalchemy-utils',
 ]
 
 [project.urls]
