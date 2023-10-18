@@ -368,9 +368,6 @@ class LimiterService(GatewayService, Limiter):
     for API endpoints. It defines methods for registering hooks to track request processing time and
     shared limits for rate limiting.
 
-    Attributes:
-        _symbolic_ratelimits (dict): A dictionary of symbolic rate limits for API endpoints.
-        test (int): A test attribute for the class.
     """
 
     def __init__(self, name: str = "LIMITER_SERVICE"):
@@ -382,7 +379,6 @@ class LimiterService(GatewayService, Limiter):
         GatewayService.__init__(self, name)
         Limiter.__init__(self, key_func=self._key_func)
         self._symbolic_ratelimits = {}
-        self.test = 1
 
     def init_app(self, app: Flask):
         """Initializes the service with the specified Flask application.
