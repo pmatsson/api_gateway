@@ -315,27 +315,27 @@ class ProxyService(GatewayService):
                 self.get_service_config("DEFAULT_RATE_LIMIT", [1000, 86400]),
             )
             properties.setdefault("scopes", self.get_service_config("DEFAULT_SCOPES", []))
+            properties.setdefault("authorization", True)
 
+            # Create the view
             rule_name = local_path = os.path.join(deploy_path, remote_path[1:])
+            proxy_view = ProxyView.as_view(rule_name, deploy_path, base_url)
 
-            counts = properties["rate_limit"][0]
-            per_second = properties["rate_limit"][1]
-            limiter_decorator = self._app.limiter_service.shared_limit(
-                counts=counts, per_second=per_second
-            )
+            # Decorate view with the rate limiter service
+            proxy_view = self._app.limiter_service.shared_limit(
+                counts=properties["rate_limit"][0],
+                per_second=properties["rate_limit"][1],
+            )(proxy_view)
 
-            auth_decorator = self._app.auth_service.require_oauth()
+            # Decorate view with the auth service, unless explicitly disabled
+            if properties["authorization"]:
+                proxy_view = self._app.auth_service.require_oauth()(proxy_view)
 
-            decorated_view_func = limiter_decorator(
-                auth_decorator(
-                    ProxyView.as_view(rule_name, deploy_path, base_url),
-                )
-            )
-
+            # Register the view with Flask
             self._app.add_url_rule(
                 rule_name,
                 endpoint=local_path,
-                view_func=decorated_view_func,
+                view_func=proxy_view,
                 methods=properties["methods"],
             )
 
