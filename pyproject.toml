@@ -17,7 +17,7 @@ classifiers = [
 packages = ["apigateway"]
 
 dependencies = [
-    'adsmutils@git+https://github.com/pmatsson/ADSMicroserviceUtils.git@3be8fef87414e2d7718689e4763d6e2ea12c21d5',
+    'adsmutils@git+https://github.com/adsabs/ADSMicroserviceUtils.git@v1.3.0',
     'authlib',
     'flask-alembic',
     'flask-limiter>=2.2.0',
@@ -28,6 +28,7 @@ dependencies = [
     'portalocker==2.8.2',
     'redis',
     'sqlalchemy-utils',
+    'Flask-Caching'
 ]
 
 [project.urls]

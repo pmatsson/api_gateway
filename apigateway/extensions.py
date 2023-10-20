@@ -7,7 +7,13 @@ from flask_security import Security
 from flask_sqlalchemy import SQLAlchemy as FlaskSQLAlchemy
 
 from apigateway.models import base_model
-from apigateway.services import AuthService, LimiterService, ProxyService, RedisService
+from apigateway.services import (
+    AuthService,
+    CacheService,
+    LimiterService,
+    ProxyService,
+    RedisService,
+)
 
 # Database
 alembic = Alembic()
@@ -24,6 +30,7 @@ auth_service = AuthService()
 proxy_service = ProxyService()
 redis_service = RedisService()
 limiter_service = LimiterService()
+cache_service = CacheService()
 
 # Other
 flask_api = Api()

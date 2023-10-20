@@ -1,5 +1,6 @@
 """ Module defining API Gateway services. """
 import datetime
+import hashlib
 import logging
 import os
 import time
@@ -12,6 +13,7 @@ from authlib.integrations.flask_oauth2 import ResourceProtector
 from authlib.integrations.sqla_oauth2 import create_bearer_token_validator
 from flask import Flask, g, request
 from flask.wrappers import Response
+from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.extension import LimitDecorator
 from flask_limiter.util import get_remote_address
@@ -316,10 +318,20 @@ class ProxyService(GatewayService):
             )
             properties.setdefault("scopes", self.get_service_config("DEFAULT_SCOPES", []))
             properties.setdefault("authorization", True)
+            properties.setdefault("cache", None)
 
             # Create the view
             rule_name = local_path = os.path.join(deploy_path, remote_path[1:])
             proxy_view = ProxyView.as_view(rule_name, deploy_path, base_url)
+
+            # If configured by the webservice, decorate view with the cache service
+            if properties["cache"] is not None:
+                cache = properties["cache"]
+                proxy_view = self._app.cache_service.cached(
+                    timeout=cache.get("timeout", 60000),
+                    query_parameters=cache.get("query_parameters", True),
+                    excluded_parameters=cache.get("excluded_parameters", []),
+                )(proxy_view)
 
             # Decorate view with the rate limiter service
             proxy_view = self._app.limiter_service.shared_limit(
@@ -589,3 +601,97 @@ class RedisService(GatewayService):
 
     def __delitem__(self, name):
         del self._redis_client[name]
+
+
+class CacheService(GatewayService, Cache):
+    """A service class that provides caching functionality for the API Gateway."""
+
+    def __init__(self, name: str = "CACHE_SERVICE"):
+        GatewayService.__init__(self, name)
+        Cache.__init__(self)
+
+    def init_app(self, app: Flask):
+        GatewayService.init_app(self, app)
+
+        app.config.setdefault("CACHE_REDIS_URL", self.get_service_config("REDIS_URI"))
+        app.config.setdefault("CACHE_TYPE", self.get_service_config("CACHE_TYPE", "RedisCache"))
+
+        Cache.init_app(self, app)
+
+    def cached(
+        self,
+        timeout: Optional[int] = None,
+        key_prefix: str = "view/%s",
+        unless: Optional[Callable] = None,
+        forced_update: Optional[Callable] = None,
+        response_filter: Optional[Callable] = None,
+        hash_method: Callable = hashlib.md5,
+        query_parameters: Optional[bool] = True,
+        excluded_parameters: Optional[list] = [],
+    ) -> Callable:
+        """Caches the response from an API request with the given parameters.
+
+        Args:
+            timeout (Optional[int], optional): The time in seconds for which the response should be cached.
+            key_prefix (str, optional): The prefix to use for the cache key.
+            unless (Optional[Callable], optional): A function that determines whether the response should be cached.
+            forced_update (Optional[Callable], optional): A function that determines whether the cache should be updated.
+            response_filter (Optional[Callable], optional): A function that filters the response before caching.
+            hash_method (Callable, optional): The hash function to use for generating the cache key.
+            query_parameters (Optional[bool], optional): Whether to include query parameters in the cache key.
+            excluded_parameters (Optional[list], optional): A list of query parameters to exclude from the cache key.
+
+        Returns:
+            Callable: The cache view decorator.
+        """
+        return Cache.cached(
+            self,
+            timeout=timeout,
+            key_prefix=key_prefix,
+            unless=unless,
+            forced_update=forced_update,
+            response_filter=response_filter,
+            hash_method=hash_method,
+            make_cache_key=lambda *args, **kwargs: self._make_cache_key(
+                query_parameters, excluded_parameters, hash_method, args, kwargs
+            ),
+        )
+
+    def _make_cache_key(
+        self,
+        query_parameters: bool,
+        excluded_parameters: list,
+        hash_method: Callable,
+        *args,
+        **kwargs,
+    ) -> str:
+        """Generates a cache key for the given parameters.
+
+        Args:
+            query_parameters (bool): Whether to include query parameters in the cache key.
+            excluded_parameters (list): A list of query parameters to exclude from the cache key.
+            hash_method (Callable): The hash function to use for generating the cache key.
+            *args: Positional arguments to include in the cache key.
+            **kwargs: Keyword arguments to include in the cache key.
+
+        Returns:
+            str: The cache key.
+        """
+        cache_key = request.path
+
+        if query_parameters:
+            args_as_sorted_tuple = tuple(
+                sorted(
+                    (k, v)
+                    for (k, v) in request.args.items(multi=True)
+                    if k not in excluded_parameters
+                )
+            )
+
+            args_as_bytes = str(args_as_sorted_tuple).encode()
+            cache_arg_hash = hash_method(args_as_bytes)
+            cache_arg_hash = str(cache_arg_hash.hexdigest())
+
+            cache_key = cache_key + cache_arg_hash
+
+        return cache_key

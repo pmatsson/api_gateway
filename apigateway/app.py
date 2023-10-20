@@ -9,6 +9,7 @@ from flask_security import SQLAlchemyUserDatastore
 from apigateway.extensions import (
     alembic,
     auth_service,
+    cache_service,
     db,
     flask_api,
     flask_security,
@@ -48,6 +49,7 @@ def register_extensions(app: Flask):
     proxy_service.init_app(app)
     redis_service.init_app(app)
     limiter_service.init_app(app)
+    cache_service.init_app(app)
 
     flask_api.init_app(app)
 

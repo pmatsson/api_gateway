@@ -33,3 +33,11 @@ LIMITER_SERVICE_STRATEGY = "fixed-window"
 
 # Redis service
 REDIS_SERVICE_URI = "redis://localhost:6379/0"
+
+
+# Cache service
+CACHE_SERVICE_CACHE_TYPE = "RedisCache"
+CACHE_SERVICE_REDIS_URI = (
+    # NOTE: Do not use the same redis DB as other services
+    "redis://localhost:6379/1"
+)
