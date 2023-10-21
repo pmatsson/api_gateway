@@ -9,7 +9,7 @@ from typing import Callable, Optional, Tuple, TypedDict, Union
 from urllib.parse import urljoin
 
 import requests
-from authlib.integrations.flask_oauth2 import ResourceProtector
+from authlib.integrations.flask_oauth2 import ResourceProtector, token_authenticated
 from authlib.integrations.sqla_oauth2 import create_bearer_token_validator
 from flask import Flask, g, request
 from flask.wrappers import Response
@@ -20,6 +20,7 @@ from flask_limiter.util import get_remote_address
 from flask_login import current_user
 from redis import Redis, StrictRedis
 from sqlalchemy import func
+from werkzeug.datastructures import Headers
 from werkzeug.security import gen_salt
 
 from apigateway.exceptions import NoClientError, ValidationError
@@ -88,6 +89,22 @@ class AuthService(GatewayService):
         super().init_app(app)
         bearer_cls = create_bearer_token_validator(app.db.session, OAuth2Token)
         self.require_oauth.register_token_validator(bearer_cls())
+        self._register_hooks(app)
+
+    def _register_hooks(self, app: Flask):
+        """Registers hooks that manipulates the headers of the request.
+
+        Args:
+            app (Flask): The Flask application to register the hooks with.
+        """
+
+        @app.before_request
+        def before_request_hook():
+            """Adds the X-Adsws-Uid header to the request if the user is authenticated."""
+            if current_user.is_authenticated:
+                headers = Headers(request.headers.items())
+                headers.add_header("X-Adsws-Uid", current_user.get_id())
+                request.headers = headers
 
     def load_client(self, client_id: str) -> Tuple[OAuth2Client, OAuth2Token]:
         """Loads the OAuth2Client and OAuth2Token for the given client_id.
@@ -411,12 +428,14 @@ class LimiterService(GatewayService, Limiter):
 
         app.config.setdefault("RATELIMIT_STORAGE_URI", self.get_service_config("STORAGE_URI"))
         app.config.setdefault("RATELIMIT_STRATEGY", self.get_service_config("STRATEGY"))
-
+        app.config.setdefault(
+            "RATELIMIT_HEADERS_ENABLED", self.get_service_config("HEADERS_ENABLED", True)
+        )
         Limiter.init_app(self, app)
 
-        self.register_hooks(app)
+        self._register_hooks(app)
 
-    def register_hooks(self, app: Flask):
+    def _register_hooks(self, app: Flask):
         """Registers hooks for tracking request processing time.
 
         This method registers hooks for tracking request processing time before and after each request.
@@ -443,6 +462,14 @@ class LimiterService(GatewayService, Limiter):
                 self._app.redis_service.incrbyfloat(key, mean_value - existing_value)
 
             return response
+
+        def _token_authenticated(sender, token=None, **kwargs):
+            client = OAuth2Client.query.filter_by(client_id=token.client_id).first()
+            level = getattr(client, "ratelimit", 1.0) if client else 0.0
+
+            request.headers.add_header("X-Adsws-Ratelimit-Level", str(level))
+
+        token_authenticated.connect(_token_authenticated, weak=False)
 
     def shared_limit(
         self,
