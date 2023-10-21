@@ -365,12 +365,18 @@ class ProxyService(GatewayService):
         resource_url = urljoin(base_url, self.get_service_config("RESOURCE_ENDPOINT", "/"))
 
         try:
-            response = requests.get(
-                resource_url, timeout=self.get_service_config("RESOURCE_TIMEOUT", 5)
-            )
+            timeout = self.get_service_config("RESOURCE_TIMEOUT", 5)
+            response = requests.get(resource_url, timeout=timeout)
+            response.raise_for_status()
+
+            self._app.cache_service.set(resource_url, response)
             return response.json()
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as ex:
-            raise ex
+        except requests.exceptions.RequestException as ex:
+            if self._app.cache_service.has(resource_url):
+                self._logger.debug("Using cached resource document for %s", resource_url)
+                return self._app.cache_service.get(resource_url).json()
+            else:
+                raise ex
 
 
 class LimiterService(GatewayService, Limiter):
