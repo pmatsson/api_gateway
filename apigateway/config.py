@@ -25,6 +25,7 @@ BOOTSTRAP_CLIENT_NAME = "BB client"
 # Proxy service
 PROXY_SERVICE_RESOURCE_ENDPOINT = "/resources"
 PROXY_SERVICE_WEBSERVICES = {"http://192.168.1.187:8181": "/scan"}
+PROXY_SERVICE_ALLOWED_HEADERS = ["Content-Type", "Content-Disposition"]
 
 # Limiter service
 LIMITER_SERVICE_STORAGE_URI = "redis://localhost:6379/0"

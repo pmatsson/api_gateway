@@ -307,9 +307,35 @@ class ProxyService(GatewayService):
 
     def register_services(self):
         """Registers all services specified in the configuration file."""
+        self.allowed_headers = self.get_service_config("ALLOWED_HEADERS", [])
+
         services = self.get_service_config("WEBSERVICES", {})
         for url, deploy_path in services.items():
             self.register_service(url, deploy_path)
+
+        self._register_hooks(self._app)
+
+    def _register_hooks(self, app: Flask):
+        """Registers hooks that manipulate the response headers.
+
+        Args:
+            app (Flask): The Flask app to register hooks for.
+        """
+
+        @app.after_request
+        def _after_request_hook(response: Response):
+            filtered_headers = {
+                key: value
+                for key, value in response.headers.items()
+                if key in self.allowed_headers
+            }
+
+            response.headers.clear()
+
+            for key, value in filtered_headers.items():
+                response.headers.add_header(key, value)
+
+            return response
 
     def register_service(self, base_url: str, deploy_path: str):
         """Registers a single service with the Flask application
