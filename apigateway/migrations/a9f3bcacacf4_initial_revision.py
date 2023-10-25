@@ -1,8 +1,8 @@
 """Initial revision
 
-Revision ID: 509466721b72
+Revision ID: a9f3bcacacf4
 Revises: 
-Create Date: 2023-10-11 14:37:19.630523
+Create Date: 2023-10-25 17:03:46.618660
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '509466721b72'
+revision: str = 'a9f3bcacacf4'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = ('default',)
 depends_on: Union[str, Sequence[str], None] = None
@@ -37,7 +37,7 @@ def upgrade() -> None:
     sa.Column('last_login_at', sa.DateTime(), nullable=True),
     sa.Column('login_count', sa.Integer(), nullable=True),
     sa.Column('registered_at', sa.DateTime(), nullable=True),
-    sa.Column('ratelimit_level', sa.Integer(), nullable=True),
+    sa.Column('ratelimit_quota', sa.Integer(), nullable=True),
     sa.Column('_allowed_scopes', sa.Text(), nullable=True),
     sa.Column('fs_uniquifier', sa.String(length=64), nullable=False),
     sa.PrimaryKeyConstraint('id'),
@@ -52,7 +52,8 @@ def upgrade() -> None:
     sa.Column('client_metadata', sa.Text(), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=True),
-    sa.Column('ratelimit', sa.Float(), nullable=True),
+    sa.Column('ratelimit_multiplier', sa.Float(), nullable=True),
+    sa.Column('individual_ratelimit_multipliers', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['user_id'], ['user.fs_uniquifier'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )

@@ -23,7 +23,7 @@ class User(base_model, UserMixin):
     last_login_at = sa.Column(sa.DateTime())
     login_count = sa.Column(sa.Integer)
     registered_at = sa.Column(sa.DateTime())
-    ratelimit_level = sa.Column(sa.Integer)
+    ratelimit_quota = sa.Column(sa.Integer)
     _allowed_scopes = sa.Column(sa.Text)
     fs_uniquifier = sa.Column(sa.String(64), unique=True, nullable=False)
 
@@ -64,8 +64,10 @@ class OAuth2Client(base_model, OAuth2ClientMixin):
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     user_id = sa.Column(sa.Integer, sa.ForeignKey("user.fs_uniquifier", ondelete="CASCADE"))
+    ratelimit_multiplier = sa.Column(sa.Float, default=0.0)
+    individual_ratelimit_multipliers = sa.Column(sa.JSON)
+
     user = relationship("User")
-    ratelimit = sa.Column(sa.Float, default=0.0)
 
     def gen_salt(self):
         self.reset_client_id()

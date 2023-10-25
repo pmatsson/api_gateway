@@ -3,13 +3,17 @@ import datetime
 import hashlib
 import logging
 import os
+import re
 import time
-from contextlib import suppress
 from typing import Callable, Optional, Tuple, TypedDict, Union
 from urllib.parse import urljoin
 
 import requests
-from authlib.integrations.flask_oauth2 import ResourceProtector, token_authenticated
+from authlib.integrations.flask_oauth2 import (
+    ResourceProtector,
+    current_token,
+    token_authenticated,
+)
 from authlib.integrations.sqla_oauth2 import create_bearer_token_validator
 from flask import Flask, g, request
 from flask.wrappers import Response
@@ -135,16 +139,17 @@ class AuthService(GatewayService):
         self,
         client_name: str = None,
         scope: str = None,
-        ratelimit: float = 1.0,
+        ratelimit_multiplier: float = 1.0,
         expires: datetime.datetime = datetime.datetime(2500, 1, 1),
         create_client: bool = False,
+        individual_ratelimit_multipliers: dict = None,
     ) -> Tuple[OAuth2Client, OAuth2Token]:
         """Bootstraps a user with an OAuth2Client and OAuth2Token.
 
         Args:
             client_name (type, optional): The name of the client. Defaults to None.
             scopes (type, optional): The scopes for the client. Defaults to None.
-            ratelimit (float, optional): The ratelimit for the client. Defaults to 1.0.
+            ratelimit_multiplier (float, optional): The ratelimit factor for the client. Defaults to 1.0.
             expires (type, optional): The expiration date for the token. Defaults to datetime.datetime(2500, 1, 1).
             create_client (bool, optional): Whether to create a new client or not. Defaults to False.
 
@@ -154,7 +159,7 @@ class AuthService(GatewayService):
         if current_user.is_bootstrap_user:
             return self.bootstrap_anonymous_user()
 
-        self._check_ratelimit(ratelimit)
+        self._check_ratelimit(ratelimit_multiplier)
         client_name = client_name or self._app.config.get("BOOTSTRAP_CLIENT_NAME", "BB client")
 
         clients = (
@@ -167,7 +172,11 @@ class AuthService(GatewayService):
         client = next((c for c in clients if c.client_name == client_name), None)
 
         if client is None or create_client:
-            client = OAuth2Client(user_id=current_user.get_id())
+            client = OAuth2Client(
+                user_id=current_user.get_id(),
+                ratelimit_multiplier=ratelimit_multiplier,
+                individual_ratelimit_multipliers=individual_ratelimit_multipliers,
+            )
             client.set_client_metadata({"client_name": client_name, "description": client_name})
 
             client.gen_salt()
@@ -272,31 +281,31 @@ class AuthService(GatewayService):
             refresh_token=gen_salt(salt_length),
         )
 
-    def _check_ratelimit(self, ratelimit: float):
+    def _check_ratelimit(self, requested_ratelimit: float):
         """
         Check if the current user has enough capacity to create a new client.
 
         Args:
-            ratelimit (float): The amount of capacity requested for the new client.
+            requested_ratelimit (float): The amount of capacity requested for the new client.
 
         Raises:
             ValidationError: If the current user account does not have enough capacity to create a new client.
         """
-        allowed_limit = current_user.ratelimit_level or 2.0
-        if allowed_limit == -1:
+        quota = current_user.ratelimit_quota or 2.0
+        if quota == -1:
             return
 
-        used = (
-            self._app.db.session.query(func.sum(OAuth2Client.ratelimit).label("sum"))
+        used_ratelimit = (
+            self._app.db.session.query(func.sum(OAuth2Client.ratelimit_multiplier).label("sum"))
             .filter(OAuth2Client.user_id == current_user.get_id())
             .first()[0]
             or 0.0
         )
 
-        if allowed_limit - (used + ratelimit) < 0:
+        if quota - (used_ratelimit + requested_ratelimit) < 0:
             raise ValidationError(
                 "The current user account (%s) does not have enough capacity to create a new client. Requested: %s, Available: %s"
-                % (current_user.email, ratelimit, allowed_limit - used)
+                % (current_user.email, requested_ratelimit, quota - used_ratelimit)
             )
 
 
@@ -559,6 +568,8 @@ class LimiterService(GatewayService, Limiter):
 
     def calculate_limit_value(self, counts: int, per_second: int) -> str:
         """Calculates the limit string for the specified counts and per second values.
+        This function is called on each request which is why it is possible to have individual
+        rate limits for each user.
 
         Args:
             counts (int): The maximum number of requests allowed per `per_second`.
@@ -566,15 +577,27 @@ class LimiterService(GatewayService, Limiter):
         Returns:
             str: The limit string value for the rate limit.
         """
-        factor = 1
-        with suppress(AttributeError):
-            factor = request.oauth.client.ratelimit
+
+        multiplier = getattr(current_token.client, "ratelimit_multiplier", 1.0)
+        individual_multipliers = getattr(
+            current_token.client, "individual_ratelimit_multipliers", None
+        )
+
+        if individual_multipliers:
+            multiplier = next(
+                (
+                    value
+                    for pattern, value in individual_multipliers.items()
+                    if re.match(pattern, request.endpoint)
+                ),
+                multiplier,
+            )
 
         if request.endpoint in self._symbolic_ratelimits:
             counts: int = self._symbolic_ratelimits[request.endpoint]["count"]
             per_second: int = self._symbolic_ratelimits[request.endpoint]["per_second"]
 
-        return "{0}/{1} second".format(int(counts * factor), per_second)
+        return "{0}/{1} second".format(int(counts * multiplier), per_second)
 
     def _cost_func(self) -> int:
         """Calculates the cost for the rate limit.

@@ -25,6 +25,7 @@ class BootstrapGetRequestSchema:
     redirect_uri: str = field(default=None)
     client_name: str = field(default=None)
     expires: str = field(default=str(datetime.datetime(2500, 1, 1)))
+    individual_ratelimits: dict = field(default=None)
 
 
 class BootstrapGetResponseSchema(SQLAlchemySchema):
@@ -42,8 +43,11 @@ class BootstrapGetResponseSchema(SQLAlchemySchema):
     anonymous = fields.Boolean(attribute="user.is_bootstrap_user", dump_only=True)
     client_id = fields.Str(attribute="client.client_id", dump_only=True)
     client_secret = fields.Str(attribute="client.client_secret", dump_only=True)
-    ratelimit = fields.Float(attribute="client.ratelimit", dump_only=True)
+    ratelimit = fields.Float(attribute="client.ratelimit_multiplier", dump_only=True)
     client_name = fields.Str(attribute="client.name", dump_only=True)
+    individual_ratelimits = fields.Dict(
+        attribute="client.individual_ratelimit_multipliers", dump_only=True
+    )
 
 
 bootstrap_get_request_schema = marshmallow_dataclass.class_schema(BootstrapGetRequestSchema)()

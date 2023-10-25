@@ -53,7 +53,8 @@ class Bootstrap(Resource):
             _, token = current_app.auth_service.bootstrap_user(
                 params.client_name,
                 scope=params.scope,
-                ratelimit=params.ratelimit,
+                ratelimit_multiplier=params.ratelimit,
+                individual_ratelimit_multipliers=params.individual_ratelimits,
                 expires=params.expires,
                 create_client=params.create_new,
             )
