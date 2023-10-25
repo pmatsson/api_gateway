@@ -7,6 +7,7 @@ from flask import current_app, request, session
 from flask.views import View
 from flask_login import current_user, login_user, logout_user
 from flask_restful import Resource, abort
+from flask_wtf.csrf import generate_csrf
 
 from apigateway.models import User
 from apigateway.schemas import (
@@ -62,6 +63,10 @@ class Bootstrap(Resource):
 
 class UserAuthView(Resource):
     """Implements login and logout functionality"""
+
+    @property
+    def method_decorators(self):
+        return [current_app.limiter_service.shared_limit("30/120 second")]
 
     def post(self):
         params = user_auth_post_request_schema.load(request.json)
@@ -140,3 +145,19 @@ class ProxyView(View):
         path = request.full_path.replace(self._deploy_path, "", 1)
         path = path[1:] if path.startswith("/") else path
         return urljoin(self._remote_base_url, path)
+
+
+class CSRFView(Resource):
+    """
+    Returns a csrf token
+    """
+
+    @property
+    def method_decorators(self):
+        return [current_app.limiter_service.shared_limit("50/600 second")]
+
+    def get(self):
+        """
+        Returns a csrf token
+        """
+        return {"csrf": generate_csrf()}

@@ -5,6 +5,7 @@ from flask_marshmallow import Marshmallow
 from flask_restful import Api
 from flask_security import Security
 from flask_sqlalchemy import SQLAlchemy as FlaskSQLAlchemy
+from flask_wtf import CSRFProtect
 
 from apigateway.models import base_model
 from apigateway.services import (
@@ -24,6 +25,7 @@ ma = Marshmallow()
 login_manager = LoginManager()
 oauth2_server = AuthorizationServer()
 flask_security = Security()
+csrf = CSRFProtect()
 
 # Services
 auth_service = AuthService()

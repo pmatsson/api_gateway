@@ -37,10 +37,10 @@ class GatewayService:
             self.init_app(app)
 
     def init_app(self, app: Flask):
-        """_summary_
+        """Initializes the application with this service.
 
         Args:
-            app (Flask): _description_
+            app (Flask): The Flask application to initialize.
         """
         if app is None:
             return
@@ -55,15 +55,16 @@ class GatewayService:
 
         app.__setattr__(self._name.lower(), self)
 
-    def get_service_config(self, key: str, default: any = None):
-        """_summary_
+    def get_service_config(self, key: str, default: any = None) -> any:
+        """Get the value of a configuration setting for this service.
+        The name of the service is prepended to the key to form the full configuration key.
 
         Args:
-            key (str): _description_
-            default (any, optional): _description_. Defaults to None.
+            key (str): The name of the configuration setting to retrieve.
+            default (any, optional): The default value to return if the configuration setting is not found. Defaults to None.
 
         Returns:
-            _type_: _description_
+            any: The value of the configuration setting, or the default value if the setting is not found.
         """
         return self._app.config.get(self._name + "_" + key, default)
 
@@ -337,12 +338,13 @@ class ProxyService(GatewayService):
 
             return response
 
-    def register_service(self, base_url: str, deploy_path: str):
+    def register_service(self, base_url: str, deploy_path: str, csrf_exempt: bool = True):
         """Registers a single service with the Flask application
 
         Args:
             base_url (str): The base URL of the service.
             deploy_path (str): The deployment path of the service
+            csrf_exempt (bool, optional): Whether to exempt the services from CSRF protection. Defaults to True.
         """
         self._logger.info("Registering service %s at %s", base_url, deploy_path)
 
@@ -366,6 +368,9 @@ class ProxyService(GatewayService):
             # Create the view
             rule_name = local_path = os.path.join(deploy_path, remote_path[1:])
             proxy_view = ProxyView.as_view(rule_name, deploy_path, base_url)
+
+            if csrf_exempt:
+                self._app.extensions["csrf"].exempt(proxy_view)
 
             # If configured by the webservice, decorate view with the cache service
             if properties["cache"] is not None:

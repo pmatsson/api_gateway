@@ -3,13 +3,15 @@ from authlib.integrations.sqla_oauth2 import (
     create_query_client_func,
     create_save_token_func,
 )
-from flask import Flask, session
+from flask import Flask, jsonify, session
 from flask_security import SQLAlchemyUserDatastore
+from flask_wtf.csrf import CSRFError
 
 from apigateway.extensions import (
     alembic,
     auth_service,
     cache_service,
+    csrf,
     db,
     flask_api,
     flask_security,
@@ -21,7 +23,7 @@ from apigateway.extensions import (
     redis_service,
 )
 from apigateway.models import OAuth2Client, OAuth2Token, Role, User
-from apigateway.views import Bootstrap, UserAuthView
+from apigateway.views import Bootstrap, CSRFView, UserAuthView
 
 
 def register_extensions(app: Flask):
@@ -52,6 +54,7 @@ def register_extensions(app: Flask):
     cache_service.init_app(app)
 
     flask_api.init_app(app)
+    csrf.init_app(app)
 
 
 def register_hooks(app: Flask):
@@ -69,11 +72,17 @@ def register_hooks(app: Flask):
     def load_user(user_id):
         return User.query.filter_by(fs_uniquifier=user_id).first()
 
+    @app.errorhandler(CSRFError)
+    def csrf_error(e):
+        app.logger.warning(f"CSRF Blocked: {e.description}")
+        return jsonify({"error": "Invalid CSRF token"}), 400
+
 
 def register_views():
     """Registers the views for the Flask application."""
     flask_api.add_resource(Bootstrap, "/bootstrap")
     flask_api.add_resource(UserAuthView, "/user")
+    flask_api.add_resource(CSRFView, "/csrf")
 
 
 def create_app():
