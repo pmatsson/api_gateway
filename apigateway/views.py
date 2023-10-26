@@ -71,20 +71,23 @@ class UserAuthView(Resource):
 
     def post(self):
         params = user_auth_post_request_schema.load(request.json)
-        user: User = User.query.filter_by(email=params.email).first()
+        with current_app.session_scope() as session:
+            user: User = session.query(User).filter_by(email=params.email).first()
 
-        if not user or not user.validate_password(params.password):
-            abort(401, message="Invalid username or password")
-        if not user.confirmed_at:
-            abort(401, message="The account has not been verified")
+            if not user or not user.validate_password(params.password):
+                abort(401, message="Invalid username or password")
+            if not user.confirmed_at:
+                abort(401, message="The account has not been verified")
 
-        if current_user.is_authenticated:
-            logout_user()
+            if current_user.is_authenticated:
+                logout_user()
 
-        login_user(user)
+            login_user(user)
 
-        user.last_login_at = datetime.datetime.now()
-        user.login_count = user.login_count + 1 if user.login_count else 1
+            user.last_login_at = datetime.datetime.now()
+            user.login_count = user.login_count + 1 if user.login_count else 1
+
+            session.commit()
 
         return {"message": "Successfully logged in"}, 200
 
