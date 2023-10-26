@@ -1,10 +1,10 @@
 """ Module defining API Gateway services. """
-import datetime
 import hashlib
 import logging
 import os
 import re
 import time
+from datetime import datetime
 from typing import Callable, Optional, Tuple, TypedDict, Union
 from urllib.parse import urljoin
 
@@ -140,7 +140,7 @@ class AuthService(GatewayService):
         client_name: str = None,
         scope: str = None,
         ratelimit_multiplier: float = 1.0,
-        expires: datetime.datetime = datetime.datetime(2500, 1, 1),
+        expires: datetime = datetime(2500, 1, 1),
         create_client: bool = False,
         individual_ratelimit_multipliers: dict = None,
     ) -> Tuple[OAuth2Client, OAuth2Token]:
@@ -150,8 +150,9 @@ class AuthService(GatewayService):
             client_name (type, optional): The name of the client. Defaults to None.
             scopes (type, optional): The scopes for the client. Defaults to None.
             ratelimit_multiplier (float, optional): The ratelimit factor for the client. Defaults to 1.0.
-            expires (type, optional): The expiration date for the token. Defaults to datetime.datetime(2500, 1, 1).
+            expires (type, optional): The expiration date for the token. Defaults to datetime(2500, 1, 1).
             create_client (bool, optional): Whether to create a new client or not. Defaults to False.
+            individual_ratelimit_multipliers (dict, optional): A dictionary of individual ratelimit multipliers for specific endpoints. Defaults to None.
 
         Returns:
             Tuple[OAuth2Client, OAuth2Token]: A tuple containing the OAuth2Client and OAuth2Token for the user.
@@ -177,7 +178,9 @@ class AuthService(GatewayService):
                 ratelimit_multiplier=ratelimit_multiplier,
                 individual_ratelimit_multipliers=individual_ratelimit_multipliers,
             )
-            client.set_client_metadata({"client_name": client_name, "description": client_name})
+            client.set_client_metadata(
+                {"client_name": client_name, "description": client_name, "scope": scope}
+            )
 
             client.gen_salt()
             self._app.db.session.add(client)
@@ -230,13 +233,13 @@ class AuthService(GatewayService):
     def _create_user_token(
         self,
         client: OAuth2Client,
-        expires=datetime.datetime(2500, 1, 1),
+        expires=datetime(2500, 1, 1),
     ) -> OAuth2Token:
         """Creates an OAuth2Token for the given OAuth2Client.
 
         Args:
             client (OAuth2Client): The OAuth2Client to create the token for.
-            expires (type, optional): The expiration date for the token. Defaults to datetime.datetime(2500, 1, 1).
+            expires (type, optional): The expiration date for the token. Defaults to datetime(2500, 1, 1).
 
         Returns:
             OAuth2Token: The created OAuth2Token.
@@ -244,10 +247,13 @@ class AuthService(GatewayService):
         salt_length = self._app.config.get("OAUTH2_CLIENT_ID_SALT_LEN", 40)
 
         token = OAuth2Token(
+            token_type="bearer",
             client_id=client.client_id,
             user_id=client.user_id,
             access_token=gen_salt(salt_length),
             refresh_token=gen_salt(salt_length),
+            scope=client.scope,
+            expires_in=(expires - datetime.now()).total_seconds(),
         )
 
         return token
@@ -268,17 +274,16 @@ class AuthService(GatewayService):
             raise ValidationError("Only bootstrap user can create temporary tokens")
 
         salt_length = self._app.config.get("OAUTH2_CLIENT_ID_SALT_LEN", 40)
-        expires = self._app.config.get("BOOTSTRAP_TOKEN_EXPIRES", 3600 * 24)
-
-        if isinstance(expires, int):
-            expires = datetime.datetime.utcnow() + datetime.timedelta(seconds=expires)
+        expires_in: int = self._app.config.get("BOOTSTRAP_TOKEN_EXPIRES", 3600 * 24)
 
         return OAuth2Token(
+            token_type="bearer",
             client_id=client.client_id,
             user_id=client.user_id,
-            # expires=expires,
             access_token=gen_salt(salt_length),
             refresh_token=gen_salt(salt_length),
+            scope=client.scope,
+            expires_in=expires_in,
         )
 
     def _check_ratelimit(self, requested_ratelimit: float):
@@ -398,7 +403,7 @@ class ProxyService(GatewayService):
 
             # Decorate view with the auth service, unless explicitly disabled
             if properties["authorization"]:
-                proxy_view = self._app.auth_service.require_oauth()(proxy_view)
+                proxy_view = self._app.auth_service.require_oauth(properties["scopes"])(proxy_view)
 
             # Register the view with Flask
             self._app.add_url_rule(
