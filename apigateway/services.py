@@ -396,10 +396,14 @@ class ProxyService(GatewayService):
                 )(proxy_view)
 
             # Decorate view with the rate limiter service
+            counts = properties["rate_limit"][0]
+            per_second = properties["rate_limit"][1]
             proxy_view = self._app.limiter_service.shared_limit(
-                counts=properties["rate_limit"][0],
-                per_second=properties["rate_limit"][1],
+                counts=counts,
+                per_second=per_second,
             )(proxy_view)
+
+            self._app.limiter_service.group_endpoint(local_path, counts, per_second)
 
             # Decorate view with the auth service, unless explicitly disabled
             if properties["authorization"]:
@@ -476,7 +480,10 @@ class LimiterService(GatewayService, Limiter):
         app.config.setdefault(
             "RATELIMIT_HEADERS_ENABLED", self.get_service_config("HEADERS_ENABLED", True)
         )
+
         Limiter.init_app(self, app)
+
+        self._ratelimit_groups = self.get_service_config("GROUPS", {})
 
         self._register_hooks(app)
 
@@ -582,11 +589,9 @@ class LimiterService(GatewayService, Limiter):
         Returns:
             str: The limit string value for the rate limit.
         """
-
-        multiplier = getattr(current_token.client, "ratelimit_multiplier", 1.0)
-        individual_multipliers = getattr(
-            current_token.client, "individual_ratelimit_multipliers", None
-        )
+        client = getattr(current_token, "client", None)
+        multiplier = getattr(client, "ratelimit_multiplier", 1.0)
+        individual_multipliers = getattr(client, "individual_ratelimit_multipliers", None)
 
         if individual_multipliers:
             multiplier = next(
@@ -599,10 +604,23 @@ class LimiterService(GatewayService, Limiter):
             )
 
         if request.endpoint in self._symbolic_ratelimits:
-            counts: int = self._symbolic_ratelimits[request.endpoint]["count"]
+            counts: int = self._symbolic_ratelimits[request.endpoint]["counts"]
             per_second: int = self._symbolic_ratelimits[request.endpoint]["per_second"]
 
         return "{0}/{1} second".format(int(counts * multiplier), per_second)
+
+    def group_endpoint(self, endpoint: str, counts: int, per_second: int):
+        for group, values in self._ratelimit_groups.items():
+            if any(re.match(pattern, endpoint) for pattern in values.get("patterns", [])):
+                if group not in self._symbolic_ratelimits.keys():
+                    self._symbolic_ratelimits[group] = {
+                        "name": group,
+                        "counts": values.get("counts", counts),
+                        "per_second": values.get("per_second", per_second),
+                    }
+
+                self._symbolic_ratelimits[endpoint] = self._symbolic_ratelimits[group]
+                break
 
     def _cost_func(self) -> int:
         """Calculates the cost for the rate limit.
@@ -627,7 +645,7 @@ class LimiterService(GatewayService, Limiter):
             str: The key for the rate limit.
         """
         if request.endpoint in self._symbolic_ratelimits:
-            return self._symbolic_ratelimits[request.endpoint]["key"]
+            return self._symbolic_ratelimits[request.endpoint]["name"]
         return request.endpoint
 
     def _scope_func(self, endpoint_name: str) -> str:

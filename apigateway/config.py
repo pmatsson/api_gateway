@@ -30,7 +30,13 @@ PROXY_SERVICE_ALLOWED_HEADERS = ["Content-Type", "Content-Disposition"]
 # Limiter service
 LIMITER_SERVICE_STORAGE_URI = "redis://localhost:6379/0"
 LIMITER_SERVICE_STRATEGY = "fixed-window"
-
+LIMITER_SERVICE_GROUPS = {
+    "example": {
+        "counts": 10,
+        "per_second": 3600 * 10,
+        "patterns": ["/scan/metadata/*"],
+    }
+}
 
 # Redis service
 REDIS_SERVICE_URI = "redis://localhost:6379/0"
