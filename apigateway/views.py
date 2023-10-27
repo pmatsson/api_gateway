@@ -3,6 +3,7 @@ from typing import Tuple
 from urllib.parse import urljoin
 
 import requests
+from authlib.integrations.flask_oauth2 import current_token
 from flask import current_app, request, session
 from flask.views import View
 from flask_login import current_user, login_user, logout_user
@@ -168,9 +169,18 @@ class CSRFView(Resource):
 
 
 class StatusView(Resource):
-    """
-    Health check resource
-    """
+    """A resource that provides a health check endpoint for the API Gateway"""
 
     def get(self):
         return {"app": current_app.name, "status": "online"}, 200
+
+
+class OAuthProtectedView(Resource):
+    """A resource that checks whether the request is authorized with OAuth2.0."""
+
+    @property
+    def method_decorators(self):
+        return [current_app.auth_service.require_oauth()]
+
+    def get(self):
+        return {"app": current_app.name, "oauth": current_token.user.email}
