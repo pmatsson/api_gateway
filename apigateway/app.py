@@ -23,7 +23,7 @@ from apigateway.extensions import (
     redis_service,
 )
 from apigateway.models import OAuth2Client, OAuth2Token, Role, User
-from apigateway.views import Bootstrap, CSRFView, UserAuthView
+from apigateway.views import Bootstrap, CSRFView, StatusView, UserAuthView
 
 
 def register_extensions(app: Flask):
@@ -83,6 +83,7 @@ def register_views():
     flask_api.add_resource(Bootstrap, "/bootstrap")
     flask_api.add_resource(UserAuthView, "/user")
     flask_api.add_resource(CSRFView, "/csrf")
+    flask_api.add_resource(StatusView, "/status")
 
 
 def create_app():

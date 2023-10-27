@@ -165,3 +165,12 @@ class CSRFView(Resource):
         Returns a csrf token
         """
         return {"csrf": generate_csrf()}
+
+
+class StatusView(Resource):
+    """
+    Health check resource
+    """
+
+    def get(self):
+        return {"app": current_app.name, "status": "online"}, 200
