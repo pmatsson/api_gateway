@@ -26,6 +26,7 @@ from apigateway.models import OAuth2Client, OAuth2Token, Role, User
 from apigateway.views import (
     Bootstrap,
     CSRFView,
+    DeleteAccountView,
     OAuthProtectedView,
     StatusView,
     UserAuthView,
@@ -87,10 +88,11 @@ def register_hooks(app: Flask):
 def register_views():
     """Registers the views for the Flask application."""
     flask_api.add_resource(Bootstrap, "/bootstrap")
-    flask_api.add_resource(UserAuthView, "/user")
     flask_api.add_resource(CSRFView, "/csrf")
     flask_api.add_resource(StatusView, "/status")
     flask_api.add_resource(OAuthProtectedView, "/protected")
+    flask_api.add_resource(UserAuthView, "/user")
+    flask_api.add_resource(DeleteAccountView, "/user/delete")
 
 
 def create_app():

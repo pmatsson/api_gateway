@@ -6,7 +6,7 @@ import requests
 from authlib.integrations.flask_oauth2 import current_token
 from flask import current_app, request, session
 from flask.views import View
-from flask_login import current_user, login_user, logout_user
+from flask_login import current_user, login_required, login_user, logout_user
 from flask_restful import Resource, abort
 from flask_wtf.csrf import generate_csrf
 
@@ -16,6 +16,7 @@ from apigateway.schemas import (
     bootstrap_get_response_schema,
     user_auth_post_request_schema,
 )
+from apigateway.utils import require_non_anonymous_bootstrap_user
 
 
 class Bootstrap(Resource):
@@ -23,11 +24,11 @@ class Bootstrap(Resource):
         params = bootstrap_get_request_schema.load(request.json)
 
         if not current_user.is_authenticated:
-            bootstrap_user: User = User.query.filter_by(is_bootstrap_user=True).first()
+            bootstrap_user: User = User.query.filter_by(is_anonymous_bootstrap_user=True).first()
             if not login_user(bootstrap_user):
                 abort(500, message="Could not login as bootstrap user")
 
-        if current_user.is_bootstrap_user and (
+        if current_user.is_anonymous_bootstrap_user and (
             params.scope or params.client_name or params.redirect_uri
         ):
             abort(
@@ -35,7 +36,7 @@ class Bootstrap(Resource):
                 message="""Sorry, you cant change scope/name/redirect_uri when creating temporary OAuth application""",
             )
 
-        if current_user.is_bootstrap_user:
+        if current_user.is_anonymous_bootstrap_user:
             client_id: str = None
             if "oauth_client" in session:
                 client_id = session["oauth_client"]
@@ -184,3 +185,18 @@ class OAuthProtectedView(Resource):
 
     def get(self):
         return {"app": current_app.name, "oauth": current_token.user.email}
+
+
+class DeleteAccountView(Resource):
+    """A Resource that allows a logged in user to delete their account"""
+
+    decorators = [login_required, require_non_anonymous_bootstrap_user]
+
+    def post(self):
+        with current_app.session_scope() as session:
+            user: User = session.query(User).filter_by(fs_uniquifier=current_user.get_id()).first()
+            logout_user()
+            session.delete(user)
+            session.commit()
+
+        return {"message": "success"}, 200

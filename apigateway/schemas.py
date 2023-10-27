@@ -40,7 +40,7 @@ class BootstrapGetResponseSchema(SQLAlchemySchema):
     token_type = fields.Constant("Bearer", dump_only=True)
     username = fields.Str(attribute="user.email", dump_only=True)
     scopes = auto_field("scope")
-    anonymous = fields.Boolean(attribute="user.is_bootstrap_user", dump_only=True)
+    anonymous = fields.Boolean(attribute="user.is_anonymous_bootstrap_user", dump_only=True)
     client_id = fields.Str(attribute="client.client_id", dump_only=True)
     client_secret = fields.Str(attribute="client.client_secret", dump_only=True)
     ratelimit = fields.Float(attribute="client.ratelimit_multiplier", dump_only=True)

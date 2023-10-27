@@ -157,7 +157,7 @@ class AuthService(GatewayService):
         Returns:
             Tuple[OAuth2Client, OAuth2Token]: A tuple containing the OAuth2Client and OAuth2Token for the user.
         """
-        if current_user.is_bootstrap_user:
+        if current_user.is_anonymous_bootstrap_user:
             return self.bootstrap_anonymous_user()
 
         self._check_ratelimit(ratelimit_multiplier)
@@ -214,7 +214,7 @@ class AuthService(GatewayService):
         Returns:
             Tuple[OAuth2Client, OAuth2Token]: A tuple containing the OAuth2Client and OAuth2Token for the anonymous user.
         """
-        if not current_user.is_bootstrap_user:
+        if not current_user.is_anonymous_bootstrap_user:
             raise ValidationError("Only anonymous bootstrap user can create temporary tokens")
 
         client = OAuth2Client(
@@ -270,7 +270,7 @@ class AuthService(GatewayService):
         Returns:
             OAuth2Token: The created temporary OAuth2Token.
         """
-        if not current_user.is_bootstrap_user:
+        if not current_user.is_anonymous_bootstrap_user:
             raise ValidationError("Only bootstrap user can create temporary tokens")
 
         salt_length = self._app.config.get("OAUTH2_CLIENT_ID_SALT_LEN", 40)
@@ -665,7 +665,7 @@ class LimiterService(GatewayService, Limiter):
                 email=request.oauth.user.email, client=request.oauth.client.client_id
             )
 
-        elif current_user.is_authenticated and not current_user.is_bootstrap_user:
+        elif current_user.is_authenticated and not current_user.is_anonymous_bootstrap_user:
             return "{email}".format(email=current_user.email)
 
         else:
