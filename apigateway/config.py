@@ -32,7 +32,7 @@ LIMITER_SERVICE_STORAGE_URI = "redis://localhost:6379/0"
 LIMITER_SERVICE_STRATEGY = "fixed-window"
 LIMITER_SERVICE_GROUPS = {
     "example": {
-        "counts": 10,
+        "counts": 1,
         "per_second": 3600 * 10,
         "patterns": ["/scan/metadata/*"],
     }
@@ -48,3 +48,7 @@ CACHE_SERVICE_REDIS_URI = (
     # NOTE: Do not use the same redis DB as other services
     "redis://localhost:6379/1"
 )
+
+# Security service
+SECURITY_SERVICE_PASSWORD_HASH = "pbkdf2_sha512"
+SECURITY_SERVICE_PASSWORD_SALT = environ.get("ADSWS_SECRET_KEY", "secret")

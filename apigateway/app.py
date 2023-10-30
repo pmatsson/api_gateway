@@ -4,8 +4,8 @@ from authlib.integrations.sqla_oauth2 import (
     create_save_token_func,
 )
 from flask import Flask, jsonify, session
-from flask_security import SQLAlchemyUserDatastore
 from flask_wtf.csrf import CSRFError
+from marshmallow import ValidationError
 
 from apigateway.extensions import (
     alembic,
@@ -14,15 +14,15 @@ from apigateway.extensions import (
     csrf,
     db,
     flask_api,
-    flask_security,
     limiter_service,
     login_manager,
     ma,
     oauth2_server,
     proxy_service,
     redis_service,
+    security_service,
 )
-from apigateway.models import OAuth2Client, OAuth2Token, Role, User
+from apigateway.models import OAuth2Client, OAuth2Token, User
 from apigateway.views import (
     Bootstrap,
     CSRFView,
@@ -30,6 +30,7 @@ from apigateway.views import (
     OAuthProtectedView,
     StatusView,
     UserAuthView,
+    UserRegistrationView,
 )
 
 
@@ -50,10 +51,9 @@ def register_extensions(app: Flask):
         save_token=create_save_token_func(db.session, OAuth2Token),
     )
 
-    user_datastore = SQLAlchemyUserDatastore(db, User, Role)
-    flask_security.init_app(app, user_datastore)
     login_manager.init_app(app)
 
+    security_service.init_app(app)
     auth_service.init_app(app)
     proxy_service.init_app(app)
     redis_service.init_app(app)
@@ -84,6 +84,12 @@ def register_hooks(app: Flask):
         app.logger.warning(f"CSRF Blocked: {e.description}")
         return jsonify({"error": "Invalid CSRF token"}), 400
 
+    @app.errorhandler(ValidationError)
+    def validation_error(e):
+        app.logger.info(f"Validation Error: {e.messages}")
+        error_messages = [", ".join(messages) for messages in e.messages.values()]
+        return jsonify({"error": ", ".join(error_messages)}), 400
+
 
 def register_views():
     """Registers the views for the Flask application."""
@@ -93,6 +99,7 @@ def register_views():
     flask_api.add_resource(OAuthProtectedView, "/protected")
     flask_api.add_resource(UserAuthView, "/user")
     flask_api.add_resource(DeleteAccountView, "/user/delete")
+    flask_api.add_resource(UserRegistrationView, "/register")
 
 
 def create_app():

@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 from typing import Tuple
 from urllib.parse import urljoin
 
@@ -15,6 +15,7 @@ from apigateway.schemas import (
     bootstrap_get_request_schema,
     bootstrap_get_response_schema,
     user_auth_post_request_schema,
+    user_register_post_request_schema,
 )
 from apigateway.utils import require_non_anonymous_bootstrap_user
 
@@ -86,7 +87,7 @@ class UserAuthView(Resource):
 
             login_user(user)
 
-            user.last_login_at = datetime.datetime.now()
+            user.last_login_at = datetime.now()
             user.login_count = user.login_count + 1 if user.login_count else 1
 
             session.commit()
@@ -200,3 +201,28 @@ class DeleteAccountView(Resource):
             session.commit()
 
         return {"message": "success"}, 200
+
+
+class UserRegistrationView(Resource):
+    @property
+    def method_decorators(self):
+        return [current_app.limiter_service.shared_limit("50/600 second")]
+
+    def post(self):
+        params = user_register_post_request_schema.load(request.json)
+
+        user = User.query.filter_by(email=params.email).first()
+        if user is not None:
+            error_message = f"An account is already registered for {params.email}"
+            return {"error": error_message}, 409
+
+        try:
+            current_app.security_service.create_user(
+                email=params.email,
+                password=params.password1,
+                registered_at=datetime.now(),
+                login_count=0,
+            )
+            return {"message": "success"}, 200
+        except ValueError as e:
+            return {"error": str(e)}, 400

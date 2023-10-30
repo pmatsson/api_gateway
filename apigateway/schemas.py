@@ -4,7 +4,7 @@ from datetime import datetime
 import marshmallow.validate
 import marshmallow_dataclass
 from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemySchema, auto_field
-from marshmallow import fields
+from marshmallow import ValidationError, fields, validates_schema
 
 from apigateway.models import OAuth2Token, User
 
@@ -61,3 +61,32 @@ class UserAuthPostRequestSchema:
 
 
 user_auth_post_request_schema = marshmallow_dataclass.class_schema(UserAuthPostRequestSchema)()
+
+
+@dataclass
+class UserRegisterPostRequestSchema:
+    email: str = field(metadata={"validate": marshmallow.validate.Email()})
+    password1: str = field(
+        metadata={
+            "validate": [
+                marshmallow.validate.Length(
+                    min=8, error="Password must be at least 8 characters long"
+                ),
+                marshmallow.validate.Regexp(
+                    regex=r"^(?=.*[A-Z])(?=.*\d).+$",
+                    error="Password must contain at least one uppercase letter and one digit",
+                ),
+            ]
+        }
+    )
+    password2: str = field()
+
+    @validates_schema
+    def validate_passwords_equal(self, data, **kwargs):
+        if data["password1"] != data["password2"]:
+            raise ValidationError("Passwords do not match", field_name="password2")
+
+
+user_register_post_request_schema = marshmallow_dataclass.class_schema(
+    UserRegisterPostRequestSchema
+)()

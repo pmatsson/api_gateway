@@ -11,6 +11,14 @@ from werkzeug.security import gen_salt
 base_model = declarative_base()
 
 
+roles_users = sa.Table(
+    "roles_users",
+    base_model.metadata,
+    sa.Column("user_id", sa.ForeignKey("user.id"), primary_key=True),
+    sa.Column("role_id", sa.ForeignKey("role.id"), primary_key=True),
+)
+
+
 class User(base_model, UserMixin):
     __tablename__ = "user"
 
@@ -26,6 +34,7 @@ class User(base_model, UserMixin):
     ratelimit_quota = sa.Column(sa.Integer)
     _allowed_scopes = sa.Column(sa.Text)
     fs_uniquifier = sa.Column(sa.String(64), unique=True, nullable=False)
+    roles = relationship("Role", secondary=roles_users)
 
     @property
     def password(self):

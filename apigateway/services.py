@@ -22,13 +22,14 @@ from flask_limiter import Limiter
 from flask_limiter.extension import LimitDecorator
 from flask_limiter.util import get_remote_address
 from flask_login import current_user
+from flask_security import Security, SQLAlchemyUserDatastore
 from redis import Redis, StrictRedis
 from sqlalchemy import func
 from werkzeug.datastructures import Headers
 from werkzeug.security import gen_salt
 
 from apigateway.exceptions import NoClientError, ValidationError
-from apigateway.models import OAuth2Client, OAuth2Token
+from apigateway.models import OAuth2Client, OAuth2Token, Role, User
 from apigateway.views import ProxyView
 
 
@@ -580,6 +581,7 @@ class LimiterService(GatewayService, Limiter):
 
     def calculate_limit_value(self, counts: int, per_second: int) -> str:
         """Calculates the limit string for the specified counts and per second values.
+
         This function is called on each request which is why it is possible to have individual
         rate limits for each user.
 
@@ -805,3 +807,76 @@ class CacheService(GatewayService, Cache):
             cache_key = cache_key + cache_arg_hash
 
         return cache_key
+
+
+class SecurityService(GatewayService, Security):
+    def __init__(self, name: str = "SECURITY_SERVICE"):
+        GatewayService.__init__(self, name)
+        Security.__init__(self)
+
+    def init_app(self, app: Flask):
+        GatewayService.init_app(self, app)
+        app.config.setdefault(
+            "SECURITY_PASSWORD_HASH", self.get_service_config("PASSWORD_HASH", "pbkdf2_sha512")
+        )
+        app.config.setdefault("SECURITY_PASSWORD_SALT", self.get_service_config("PASSWORD_SALT"))
+        Security.init_app(self, app, datastore=SQLAlchemyUserDatastore(app.db, User, Role))
+
+    def create_user(self, email: str, password: str, **kwargs) -> User:
+        """Creates a new user with the specified email and password.
+
+        Args:
+            email (str): The email of the user.
+            password (str): The password of the user.
+            roles (list, optional): The roles of the user. Defaults to None.
+            kwargs (dict): Additional keyword arguments to pass to the user.
+
+        Raises:
+            ValueError: If the email or password is invalid.
+
+        Returns:
+            User: The created user.
+        """
+
+        email = self._mail_util.validate(email)
+        pbad, password = self._password_util.validate(password, True)
+
+        if pbad is not None:
+            raise ValueError(", ".join(pbad))
+
+        # Passwords are hashed in the setter of the model. No need to do it here.
+        user = self.datastore.create_user(email=email, password=password, **kwargs)
+        self.datastore.commit()
+
+        return user
+
+    def create_role(self, name: str, description: str = None, **kwargs) -> Role:
+        """Creates a new role with the specified name and description.
+
+        Args:
+            name (str): The name of the role.
+            description (str, optional): The description of the role. Defaults to None.
+            kwargs (dict): Additional keyword arguments to pass to the role.
+
+        Returns:
+            Role: The created role.
+        """
+        role = self.datastore.create_role(name=name, description=description, **kwargs)
+        self.datastore.commit()
+        return role
+
+    def add_role_to_user(self, user: User, role: Role) -> bool:
+        """Adds the specified role to the specified user.
+
+        Args:
+            user (User): The user to add the role to.
+            role (Role): The role to add to the user.
+
+        Returns:
+            bool: True if the role was added successfully, False otherwise.
+        """
+        if self.datastore.add_role_to_user(user, role):
+            self.datastore.commit()
+            return True
+        else:
+            return False
