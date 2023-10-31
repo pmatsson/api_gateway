@@ -204,6 +204,11 @@ class DeleteAccountView(Resource):
 
 
 class UserRegistrationView(Resource):
+    """A Resource for user registration.
+
+    This resource handles user registration requests. It checks if the user is already registered
+    and creates a new user if not"""
+
     @property
     def method_decorators(self):
         return [current_app.limiter_service.shared_limit("50/600 second")]
@@ -226,3 +231,11 @@ class UserRegistrationView(Resource):
             return {"message": "success"}, 200
         except ValueError as e:
             return {"error": str(e)}, 400
+
+
+class LogoutView(Resource):
+    """Logs out the current user"""
+
+    def post(self):
+        logout_user()
+        return {"message": "success"}, 200
