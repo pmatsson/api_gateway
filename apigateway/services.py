@@ -880,3 +880,14 @@ class SecurityService(GatewayService, Security):
             return True
         else:
             return False
+
+    def change_password(self, user: User, password: str) -> User:
+        pbad, password = self._password_util.validate(password, True)
+
+        if pbad is not None:
+            raise ValueError(", ".join(pbad))
+
+        user.password = password
+        user = self._app.db.session.merge(user)
+        self.datastore.put(user)
+        self.datastore.commit()

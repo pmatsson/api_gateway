@@ -25,6 +25,7 @@ from apigateway.extensions import (
 from apigateway.models import OAuth2Client, OAuth2Token, User
 from apigateway.views import (
     Bootstrap,
+    ChangePasswordView,
     CSRFView,
     DeleteAccountView,
     LogoutView,
@@ -102,6 +103,7 @@ def register_views():
     flask_api.add_resource(DeleteAccountView, "/user/delete")
     flask_api.add_resource(UserRegistrationView, "/register")
     flask_api.add_resource(LogoutView, "/logout")
+    flask_api.add_resource(ChangePasswordView, "/change-password")
 
 
 def create_app():

@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -5,8 +6,26 @@ import marshmallow.validate
 import marshmallow_dataclass
 from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemySchema, auto_field
 from marshmallow import ValidationError, fields, validates_schema
+from marshmallow.validate import Validator
 
 from apigateway.models import OAuth2Token, User
+
+
+class PasswordValidator(Validator):
+    """Validate a password."""
+
+    PASSWORD_REGEX = re.compile(r"^(?=.*[A-Z])(?=.*\d).+$")
+
+    def __call__(self, value: str) -> str:
+        if len(value) < 8:
+            raise ValidationError("Password must be at least 8 characters long")
+
+        if not self.PASSWORD_REGEX.match(value):
+            raise ValidationError(
+                "Password must contain at least one uppercase letter and one digit"
+            )
+
+        return value
 
 
 class UserSchema(SQLAlchemyAutoSchema):
@@ -66,19 +85,7 @@ user_auth_post_request_schema = marshmallow_dataclass.class_schema(UserAuthPostR
 @dataclass
 class UserRegisterPostRequestSchema:
     email: str = field(metadata={"validate": marshmallow.validate.Email()})
-    password1: str = field(
-        metadata={
-            "validate": [
-                marshmallow.validate.Length(
-                    min=8, error="Password must be at least 8 characters long"
-                ),
-                marshmallow.validate.Regexp(
-                    regex=r"^(?=.*[A-Z])(?=.*\d).+$",
-                    error="Password must contain at least one uppercase letter and one digit",
-                ),
-            ]
-        }
-    )
+    password1: str = field(metadata={"validate": PasswordValidator()})
     password2: str = field()
 
     @validates_schema
@@ -90,3 +97,18 @@ class UserRegisterPostRequestSchema:
 user_register_post_request_schema = marshmallow_dataclass.class_schema(
     UserRegisterPostRequestSchema
 )()
+
+
+@dataclass
+class ChangePasswordRequestSchema:
+    old_password: str = field()
+    new_password1: str = field(metadata={"validate": PasswordValidator()})
+    new_password2: str = field()
+
+    @validates_schema
+    def validate_passwords_equal(self, data, **kwargs):
+        if data["new_password1"] != data["new_password2"]:
+            raise ValidationError("Passwords do not match", field_name="new_password2")
+
+
+change_password_request_schema = marshmallow_dataclass.class_schema(ChangePasswordRequestSchema)()

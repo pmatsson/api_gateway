@@ -14,6 +14,7 @@ from apigateway.models import User
 from apigateway.schemas import (
     bootstrap_get_request_schema,
     bootstrap_get_response_schema,
+    change_password_request_schema,
     user_auth_post_request_schema,
     user_register_post_request_schema,
 )
@@ -238,4 +239,17 @@ class LogoutView(Resource):
 
     def post(self):
         logout_user()
+        return {"message": "success"}, 200
+
+
+class ChangePasswordView(Resource):
+    decorators = [login_required, require_non_anonymous_bootstrap_user]
+
+    def post(self):
+        params = change_password_request_schema.load(request.json)
+
+        if not current_user.validate_password(params.old_password):
+            return {"error": "please verify your current password"}, 401
+
+        current_app.security_service.change_password(current_user, params.new_password1)
         return {"message": "success"}, 200
