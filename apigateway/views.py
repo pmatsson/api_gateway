@@ -189,22 +189,7 @@ class OAuthProtectedView(Resource):
         return {"app": current_app.name, "oauth": current_token.user.email}
 
 
-class DeleteAccountView(Resource):
-    """A Resource that allows a logged in user to delete their account"""
-
-    decorators = [login_required, require_non_anonymous_bootstrap_user]
-
-    def post(self):
-        with current_app.session_scope() as session:
-            user: User = session.query(User).filter_by(fs_uniquifier=current_user.get_id()).first()
-            logout_user()
-            session.delete(user)
-            session.commit()
-
-        return {"message": "success"}, 200
-
-
-class UserRegistrationView(Resource):
+class UserManagementView(Resource):
     """A Resource for user registration.
 
     This resource handles user registration requests. It checks if the user is already registered
@@ -212,7 +197,10 @@ class UserRegistrationView(Resource):
 
     @property
     def method_decorators(self):
-        return [current_app.limiter_service.shared_limit("50/600 second")]
+        return {
+            "post": [current_app.limiter_service.shared_limit("50/600 second")],
+            "delete": [login_required, require_non_anonymous_bootstrap_user],
+        }
 
     def post(self):
         params = user_register_post_request_schema.load(request.json)
@@ -232,6 +220,15 @@ class UserRegistrationView(Resource):
             return {"message": "success"}, 200
         except ValueError as e:
             return {"error": str(e)}, 400
+
+    def delete(self):
+        with current_app.session_scope() as session:
+            user: User = session.query(User).filter_by(fs_uniquifier=current_user.get_id()).first()
+            logout_user()
+            session.delete(user)
+            session.commit()
+
+        return {"message": "success"}, 200
 
 
 class LogoutView(Resource):

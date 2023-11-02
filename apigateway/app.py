@@ -27,12 +27,11 @@ from apigateway.views import (
     Bootstrap,
     ChangePasswordView,
     CSRFView,
-    DeleteAccountView,
     LogoutView,
     OAuthProtectedView,
     StatusView,
     UserAuthView,
-    UserRegistrationView,
+    UserManagementView,
 )
 
 
@@ -99,11 +98,10 @@ def register_views():
     flask_api.add_resource(CSRFView, "/csrf")
     flask_api.add_resource(StatusView, "/status")
     flask_api.add_resource(OAuthProtectedView, "/protected")
-    flask_api.add_resource(UserAuthView, "/user")
-    flask_api.add_resource(DeleteAccountView, "/user/delete")
-    flask_api.add_resource(UserRegistrationView, "/register")
-    flask_api.add_resource(LogoutView, "/logout")
-    flask_api.add_resource(ChangePasswordView, "/change-password")
+    flask_api.add_resource(UserAuthView, "/user/login")
+    flask_api.add_resource(LogoutView, "/user/logout")
+    flask_api.add_resource(UserManagementView, "/user")
+    flask_api.add_resource(ChangePasswordView, "/user/change-password")
 
 
 def create_app():
