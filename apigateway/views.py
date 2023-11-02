@@ -212,6 +212,8 @@ class UserManagementView(Resource):
 
         try:
             current_app.security_service.create_user(
+                given_name=params.given_name,
+                family_name=params.family_name,
                 email=params.email,
                 password=params.password1,
                 registered_at=datetime.now(),
