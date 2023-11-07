@@ -891,3 +891,10 @@ class SecurityService(GatewayService, Security):
         user = self._app.db.session.merge(user)
         self.datastore.put(user)
         self.datastore.commit()
+
+    def change_email(self, user: User, email: str) -> User:
+        email = self._mail_util.validate(email)
+        user.email = email
+        user = self._app.db.session.merge(user)
+        self.datastore.put(user)
+        self.datastore.commit()

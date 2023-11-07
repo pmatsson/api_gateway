@@ -14,6 +14,7 @@ from apigateway.models import User
 from apigateway.schemas import (
     bootstrap_get_request_schema,
     bootstrap_get_response_schema,
+    change_email_request_schema,
     change_password_request_schema,
     user_auth_post_request_schema,
     user_register_post_request_schema,
@@ -244,11 +245,30 @@ class LogoutView(Resource):
 class ChangePasswordView(Resource):
     decorators = [login_required, require_non_anonymous_bootstrap_user]
 
-    def post(self):
+    def patch(self):
         params = change_password_request_schema.load(request.json)
 
         if not current_user.validate_password(params.old_password):
             return {"error": "please verify your current password"}, 401
 
         current_app.security_service.change_password(current_user, params.new_password1)
+        return {"message": "success"}, 200
+
+
+class ChangeEmailView(Resource):
+    @property
+    def method_decorators(self):
+        return [
+            current_app.limiter_service.shared_limit("5/600 second"),
+            login_required,
+            require_non_anonymous_bootstrap_user,
+        ]
+
+    def patch(self):
+        params = change_email_request_schema.load(request.json)
+
+        if not current_user.validate_password(params.password):
+            return {"error": "the provided password is incorrect"}, 401
+
+        current_app.security_service.change_email(current_user, params.email)
         return {"message": "success"}, 200

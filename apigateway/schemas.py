@@ -114,3 +114,12 @@ class ChangePasswordRequestSchema:
 
 
 change_password_request_schema = marshmallow_dataclass.class_schema(ChangePasswordRequestSchema)()
+
+
+@dataclass
+class ChangeEmailRequestSchema:
+    email: str = field(metadata={"validate": marshmallow.validate.Email()})
+    password: str = field(metadata={"validate": PasswordValidator()})
+
+
+change_email_request_schema = marshmallow_dataclass.class_schema(ChangeEmailRequestSchema)()
