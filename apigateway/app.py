@@ -7,6 +7,7 @@ from flask import Flask, jsonify, session
 from flask_wtf.csrf import CSRFError
 from marshmallow import ValidationError
 
+from apigateway.exceptions import NotFoundError
 from apigateway.extensions import (
     alembic,
     auth_service,
@@ -33,6 +34,7 @@ from apigateway.views import (
     StatusView,
     UserAuthView,
     UserManagementView,
+    VerfyEmailView,
 )
 
 
@@ -92,6 +94,11 @@ def register_hooks(app: Flask):
         error_messages = [", ".join(messages) for messages in e.messages.values()]
         return jsonify({"error": ", ".join(error_messages)}), 400
 
+    @app.errorhandler(NotFoundError)
+    def not_found_error(e):
+        app.logger.info(f"Not Found Error: {e.value}")
+        return jsonify({"error": e.value}), 404
+
 
 def register_views():
     """Registers the views for the Flask application."""
@@ -104,6 +111,7 @@ def register_views():
     flask_api.add_resource(UserManagementView, "/user")
     flask_api.add_resource(ChangePasswordView, "/user/change-password")
     flask_api.add_resource(ChangeEmailView, "/user/change-email")
+    flask_api.add_resource(VerfyEmailView, "/user/verify/<string:token>")
 
 
 def create_app():

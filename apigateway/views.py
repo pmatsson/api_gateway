@@ -272,3 +272,14 @@ class ChangeEmailView(Resource):
 
         current_app.security_service.change_email(current_user, params.email)
         return {"message": "success"}, 200
+
+
+class VerfyEmailView(Resource):
+    @property
+    def method_decorators(self):
+        return [current_app.limiter_service.shared_limit("20/600 second")]
+
+    def get(self, token):
+        user = current_app.security_service.verify_email_token(token)
+        login_user(user)
+        return {"message": "success"}, 200

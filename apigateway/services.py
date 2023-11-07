@@ -23,12 +23,13 @@ from flask_limiter.extension import LimitDecorator
 from flask_limiter.util import get_remote_address
 from flask_login import current_user
 from flask_security import Security, SQLAlchemyUserDatastore
+from itsdangerous import URLSafeTimedSerializer
 from redis import Redis, StrictRedis
 from sqlalchemy import func
 from werkzeug.datastructures import Headers
 from werkzeug.security import gen_salt
 
-from apigateway.exceptions import NoClientError, ValidationError
+from apigateway.exceptions import NoClientError, NotFoundError, ValidationError
 from apigateway.models import OAuth2Client, OAuth2Token, Role, User
 from apigateway.views import ProxyView
 
@@ -822,6 +823,8 @@ class SecurityService(GatewayService, Security):
         app.config.setdefault("SECURITY_PASSWORD_SALT", self.get_service_config("PASSWORD_SALT"))
         Security.init_app(self, app, datastore=SQLAlchemyUserDatastore(app.db, User, Role))
 
+        self._token_serializer = URLSafeTimedSerializer(self.get_service_config("SECRET_KEY"))
+
     def create_user(self, email: str, password: str, **kwargs) -> User:
         """Creates a new user with the specified email and password.
 
@@ -882,6 +885,19 @@ class SecurityService(GatewayService, Security):
             return False
 
     def change_password(self, user: User, password: str) -> User:
+        """
+        Change the password for a given user.
+
+        Args:
+            user (User): The user object for which to change the password.
+            password (str): The new password to set for the user.
+
+        Raises:
+            ValueError: If the new password is invalid.
+
+        Returns:
+            User: The updated user object.
+        """
         pbad, password = self._password_util.validate(password, True)
 
         if pbad is not None:
@@ -892,9 +908,64 @@ class SecurityService(GatewayService, Security):
         self.datastore.put(user)
         self.datastore.commit()
 
+        return user
+
     def change_email(self, user: User, email: str) -> User:
+        """
+        Change the email of a user.
+
+        Args:
+            user (User): The user object to update.
+            email (str): The new email address for the user.
+
+        Returns:
+            User: The updated user object.
+        """
         email = self._mail_util.validate(email)
         user.email = email
         user = self._app.db.session.merge(user)
         self.datastore.put(user)
         self.datastore.commit()
+
+        return user
+
+    def verify_email_token(self, token: str) -> User:
+        """
+        Verify email token and confirm user's email address.
+
+        Args:
+            token (str): The email verification token.
+
+        Raises:
+            ValueError: If the token is invalid or expired.
+            NotFoundError: If no user is associated with the verification token.
+            ValueError: If the user's email has already been validated.
+
+        Returns:
+            User: The user object with the confirmed email address.
+        """
+        try:
+            email = self._token_serializer.loads(
+                token, max_age=86400, salt=self.get_service_config("VERIFY_EMAIL_SALT")
+            )
+        except Exception as ex:
+            self._logger.warning(
+                "{0} verification token not validated. Reason: {1}".format(token, ex)
+            )
+            raise ValueError("unknown verification token")
+
+        user: User = User.query.filter_by(email=email).first()
+
+        if user is None:
+            raise NotFoundError("no user associated with that verification token")
+
+        if user.confirmed_at is not None:
+            raise ValueError("this user and email has already been validated")
+
+        user.confirmed_at = datetime.now()
+
+        user = self._app.db.session.merge(user)
+        self.datastore.put(user)
+        self.datastore.commit()
+
+        return user
