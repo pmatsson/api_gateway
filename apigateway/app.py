@@ -114,14 +114,14 @@ def register_views():
     flask_api.add_resource(VerfyEmailView, "/user/verify/<string:token>")
 
 
-def create_app():
+def create_app(**config):
     """Create application and initialize dependencies.
 
     Returns:
         ADSFlask: Application object
     """
 
-    app = ADSFlask(__name__, static_folder=None)
+    app = ADSFlask(__name__, static_folder=None, local_config=config)
 
     register_views()
     register_extensions(app)
