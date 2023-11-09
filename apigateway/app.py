@@ -34,7 +34,7 @@ from apigateway.views import (
     StatusView,
     UserAuthView,
     UserManagementView,
-    VerfyEmailView,
+    VerifyEmailView,
 )
 
 
@@ -111,7 +111,7 @@ def register_views():
     flask_api.add_resource(UserManagementView, "/user")
     flask_api.add_resource(ChangePasswordView, "/user/change-password")
     flask_api.add_resource(ChangeEmailView, "/user/change-email")
-    flask_api.add_resource(VerfyEmailView, "/user/verify/<string:token>")
+    flask_api.add_resource(VerifyEmailView, "/user/verify/<string:token>")
 
 
 def create_app(**config):

@@ -2,6 +2,7 @@ from os import environ
 
 # General
 DEBUG = True
+MAIL_DEFAULT_SENDER = "no-reply@adslabs.org"
 
 # Logging
 LOGGING_LEVEL = "DEBUG"

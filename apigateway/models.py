@@ -98,3 +98,13 @@ class OAuth2Token(base_model, OAuth2TokenMixin):
     user = relationship("User")
     client_id = sa.Column(sa.String(48), sa.ForeignKey("oauth2client.client_id"))
     client = relationship("OAuth2Client")
+
+
+class EmailChangeRequest(base_model):
+    __tablename__ = "email_change_request"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    token = sa.Column(sa.String(255), unique=True)
+    user_id = sa.Column(sa.String, sa.ForeignKey("user.id", ondelete="CASCADE"))
+    user = relationship("User")
+    new_email = sa.Column(sa.Text)

@@ -4,13 +4,14 @@ from urllib.parse import urljoin
 
 import requests
 from authlib.integrations.flask_oauth2 import current_token
-from flask import current_app, request, session
+from flask import current_app, request, session, url_for
 from flask.views import View
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_restful import Resource, abort
 from flask_wtf.csrf import generate_csrf
 
-from apigateway.models import User
+from apigateway.email_templates import EmailChangedNotification, VerificationEmail
+from apigateway.models import EmailChangeRequest, User
 from apigateway.schemas import (
     bootstrap_get_request_schema,
     bootstrap_get_response_schema,
@@ -19,7 +20,7 @@ from apigateway.schemas import (
     user_auth_post_request_schema,
     user_register_post_request_schema,
 )
-from apigateway.utils import require_non_anonymous_bootstrap_user
+from apigateway.utils import require_non_anonymous_bootstrap_user, send_email
 
 
 class Bootstrap(Resource):
@@ -245,7 +246,7 @@ class LogoutView(Resource):
 class ChangePasswordView(Resource):
     decorators = [login_required, require_non_anonymous_bootstrap_user]
 
-    def patch(self):
+    def post(self):
         params = change_password_request_schema.load(request.json)
 
         if not current_user.validate_password(params.old_password):
@@ -264,22 +265,67 @@ class ChangeEmailView(Resource):
             require_non_anonymous_bootstrap_user,
         ]
 
-    def patch(self):
+    def post(self):
         params = change_email_request_schema.load(request.json)
 
         if not current_user.validate_password(params.password):
             return {"error": "the provided password is incorrect"}, 401
 
-        current_app.security_service.change_email(current_user, params.email)
+        if not current_app.security_service.validate_email(params.email):
+            return {"error": "the provided email address is invalid"}, 400
+
+        if not User.query.filter_by(email=params.email).first() is None:
+            return {"error": "{0} has already been registered".format(params.email)}, 403
+
+        token: str = current_app.security_service.generate_email_token()
+
+        with current_app.session_scope() as session:
+            email_change_request = EmailChangeRequest(
+                token=token,
+                user_id=current_user.id,
+                new_email=params.email,
+            )
+
+            session.add(email_change_request)
+            session.commit()
+
+        # Verify new email address
+        send_email(
+            current_app.config["MAIL_DEFAULT_SENDER"],
+            params.email,
+            VerificationEmail,
+            verification_url=url_for("verifyemailview", token=token, _external=True),
+        )
+
+        # Notify previous email address of change
+        send_email(
+            current_app.config["MAIL_DEFAULT_SENDER"],
+            current_user.email,
+            EmailChangedNotification,
+        )
         return {"message": "success"}, 200
 
 
-class VerfyEmailView(Resource):
+class VerifyEmailView(Resource):
     @property
     def method_decorators(self):
         return [current_app.limiter_service.shared_limit("20/600 second")]
 
     def get(self, token):
         user = current_app.security_service.verify_email_token(token)
-        login_user(user)
-        return {"message": "success"}, 200
+        with current_app.session_scope() as session:
+            email_change_request = session.query(EmailChangeRequest).filter_by(token=token).first()
+
+            if email_change_request is not None:
+                current_app.security_service.change_email(
+                    current_user, email_change_request.new_email
+                )
+
+                session.delete(email_change_request)
+                session.commit()
+
+                login_user(user)
+
+                return {"message": "success"}, 200
+            else:
+                return {"error": "no user associated with that verification token"}, 404

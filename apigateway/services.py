@@ -910,6 +910,23 @@ class SecurityService(GatewayService, Security):
 
         return user
 
+    def validate_email(self, email: str) -> bool:
+        """
+        Validate an email address.
+
+        Args:
+            email (str): The email address to validate.
+
+        Returns:
+            bool: True if the email address is valid, False otherwise.
+        """
+        try:
+            self._mail_util.validate(email)
+        except ValidationError:
+            return False
+
+        return True
+
     def change_email(self, user: User, email: str) -> User:
         """
         Change the email of a user.
@@ -929,9 +946,20 @@ class SecurityService(GatewayService, Security):
 
         return user
 
+    def generate_email_token(self) -> str:
+        """
+        Generate an email verification token for the current user.
+
+        Returns:
+            str: The email verification token.
+        """
+        return self._token_serializer.dumps(
+            current_user.id, salt=self.get_service_config("VERIFY_EMAIL_SALT")
+        )
+
     def verify_email_token(self, token: str) -> User:
         """
-        Verify email token and confirm user's email address.
+        Verify email token and return the User object associated with the token.
 
         Args:
             token (str): The email verification token.
@@ -942,10 +970,10 @@ class SecurityService(GatewayService, Security):
             ValueError: If the user's email has already been validated.
 
         Returns:
-            User: The user object with the confirmed email address.
+            User: The user object associated with the verification token.
         """
         try:
-            email = self._token_serializer.loads(
+            user_id = self._token_serializer.loads(
                 token, max_age=86400, salt=self.get_service_config("VERIFY_EMAIL_SALT")
             )
         except Exception as ex:
@@ -954,18 +982,9 @@ class SecurityService(GatewayService, Security):
             )
             raise ValueError("unknown verification token")
 
-        user: User = User.query.filter_by(email=email).first()
+        user: User = User.query.filter_by(id=user_id).first()
 
         if user is None:
             raise NotFoundError("no user associated with that verification token")
-
-        if user.confirmed_at is not None:
-            raise ValueError("this user and email has already been validated")
-
-        user.confirmed_at = datetime.now()
-
-        user = self._app.db.session.merge(user)
-        self.datastore.put(user)
-        self.datastore.commit()
 
         return user
