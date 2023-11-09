@@ -40,6 +40,7 @@ def moc_anon_user():
         user.get_id.return_value = "test_anon_user"
         user.is_anonymous_bootstrap_user = True
         user.ratelimit_quota = -1
+        user.allowed_scopes = ["test_scope"]
         mock_user.return_value = user
         yield user
 
@@ -51,6 +52,7 @@ def moc_regular_user():
         user.get_id.return_value = "test_user"
         user.is_anonymous_bootstrap_user = False
         user.ratelimit_quota = 3
+        user.allowed_scopes = ["test_scope"]
         mock_user.return_value = user
         yield user
 
@@ -92,3 +94,13 @@ class TestAuthService:
     def test_bootstrap_user_no_capacity(self, app, moc_regular_user):
         with pytest.raises(ValidationError):
             _, _ = app.auth_service.bootstrap_user(ratelimit_multiplier=100)
+
+    def test_bootstrap_invalid_scope(self, app, moc_regular_user):
+        with pytest.raises(ValidationError):
+            _, _ = app.auth_service.bootstrap_user(scope="invalid")
+
+    def test_bootstrap_valid_scope(self, app, moc_regular_user):
+        try:
+            _, _ = app.auth_service.bootstrap_user(scope="test_scope")
+        except ValidationError:
+            pytest.fail("Unexpected ValidationError")
