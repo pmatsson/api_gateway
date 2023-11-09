@@ -1,3 +1,5 @@
+from typing import List
+
 import sqlalchemy as sa
 from authlib.integrations.sqla_oauth2 import OAuth2ClientMixin, OAuth2TokenMixin
 from flask import current_app
@@ -50,6 +52,13 @@ class User(base_model, UserMixin):
     @hybrid_property
     def is_anonymous_bootstrap_user(self):
         return current_app.config["ANONYMOUS_BOOTSTRAP_USER_EMAIL"] == self.email
+
+    @property
+    def allowed_scopes(self) -> List[str]:
+        if self._allowed_scopes:
+            return self._allowed_scopes.split(" ")
+        else:
+            return current_app.config["USER_DEFAULT_SCOPES"]
 
     def validate_password(self, password) -> bool:
         return verify_password(password, self.password)

@@ -162,7 +162,9 @@ class AuthService(GatewayService):
         if current_user.is_anonymous_bootstrap_user:
             return self.bootstrap_anonymous_user()
 
-        self._check_ratelimit(ratelimit_multiplier)
+        self._validate_ratelimit(ratelimit_multiplier)
+        self._validate_scopes(scope)
+
         client_name = client_name or self._app.config.get("BOOTSTRAP_CLIENT_NAME", "BB client")
 
         clients = (
@@ -288,7 +290,7 @@ class AuthService(GatewayService):
             expires_in=expires_in,
         )
 
-    def _check_ratelimit(self, requested_ratelimit: float):
+    def _validate_ratelimit(self, requested_ratelimit: float):
         """
         Check if the current user has enough capacity to create a new client.
 
@@ -313,6 +315,20 @@ class AuthService(GatewayService):
             raise ValidationError(
                 "The current user account (%s) does not have enough capacity to create a new client. Requested: %s, Available: %s"
                 % (current_user.email, requested_ratelimit, quota - used_ratelimit)
+            )
+
+    def _validate_scopes(self, scopes: str):
+        allowed_scopes = set(current_user.allowed_scopes)
+
+        if "*" in allowed_scopes or scopes is None:
+            return
+
+        requested_scopes = set(scopes.split())
+
+        if not allowed_scopes.issuperset(requested_scopes):
+            raise ValidationError(
+                "The current user account (%s) does not have the requested scopes. Requested: %s, Allowed: %s"
+                % (current_user.email, requested_scopes, allowed_scopes)
             )
 
 
