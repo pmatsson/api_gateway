@@ -827,6 +827,14 @@ class CacheService(GatewayService, Cache):
 
 
 class SecurityService(GatewayService, Security):
+    """A service for managing user authentication and authorization.
+
+    This service provides methods for creating and managing users and roles, changing passwords and email addresses,
+    and generating and verifying email verification tokens.
+
+
+    """
+
     def __init__(self, name: str = "SECURITY_SERVICE"):
         GatewayService.__init__(self, name)
         Security.__init__(self)
