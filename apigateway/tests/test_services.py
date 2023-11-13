@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from flask import g
 
 from apigateway.app import create_app
 from apigateway.exceptions import ValidationError
@@ -36,10 +37,11 @@ def test_db(app):
 
 
 @pytest.fixture()
-def moc_anon_user():
+def mock_anon_user():
     with patch("flask_login.utils._get_user") as mock_user:
         user = MagicMock()
         user.get_id.return_value = "test_anon_user"
+        user.id = 456
         user.is_anonymous_bootstrap_user = True
         user.ratelimit_quota = -1
         user.allowed_scopes = ["test_scope"]
@@ -48,15 +50,41 @@ def moc_anon_user():
 
 
 @pytest.fixture()
-def moc_regular_user():
+def mock_regular_user():
     with patch("flask_login.utils._get_user") as mock_user:
         user = MagicMock()
         user.get_id.return_value = "test_user"
+        user.id = 123
+        user.email = "test@gmail.com"
         user.is_anonymous_bootstrap_user = False
         user.ratelimit_quota = 3
         user.allowed_scopes = ["test_scope"]
         mock_user.return_value = user
         yield user
+
+
+@pytest.fixture
+def mock_client():
+    client = MagicMock()
+    client.ratelimit_multiplier = 3.0
+    client.individual_ratelimit_multipliers = {}
+    return client
+
+
+@pytest.fixture
+def mock_current_token(mock_client):
+    # Store the original value
+    original_token = g.get("authlib_server_oauth2_token")
+
+    # Set the mock value
+    mock_instance = MagicMock()
+    mock_instance.client = mock_client
+    g.authlib_server_oauth2_token = mock_instance
+
+    yield mock_instance
+
+    # Restore the original value
+    g.authlib_server_oauth2_token = original_token
 
 
 @pytest.fixture
@@ -94,6 +122,13 @@ def mock_auth_service(app, monkeypatch):
 def mock_proxy_service(app, monkeypatch):
     mock_proxy = MagicMock()
     monkeypatch.setattr(app, "proxy_service", mock_proxy)
+    return mock_proxy
+
+
+@pytest.fixture
+def mock_security_service(app, monkeypatch):
+    mock_proxy = MagicMock()
+    monkeypatch.setattr(app, "security_service", mock_proxy)
     return mock_proxy
 
 
@@ -152,10 +187,10 @@ class TestGatewayService:
 
 
 class TestAuthService:
-    def test_load_client(self, app, moc_anon_user):
+    def test_load_client(self, app, mock_anon_user):
         # Arrange
-        token = OAuth2Token(user_id=moc_anon_user.get_id(), access_token="test_token")
-        client = OAuth2Client(user_id=moc_anon_user.get_id(), client_id="test_client")
+        token = OAuth2Token(user_id=mock_anon_user.get_id(), access_token="test_token")
+        client = OAuth2Client(user_id=mock_anon_user.get_id(), client_id="test_client")
 
         app.db.session.add(token)
         app.db.session.add(client)
@@ -166,34 +201,34 @@ class TestAuthService:
 
         # Assert
         assert client.client_id == "test_client"
-        assert token.user_id == moc_anon_user.get_id()
+        assert token.user_id == mock_anon_user.get_id()
 
-    def test_bootstrap_anon_user(self, app, moc_anon_user):
+    def test_bootstrap_anon_user(self, app, mock_anon_user):
         # Act
         client, token = app.auth_service.bootstrap_user()
 
         # Assert
-        assert client.user_id == moc_anon_user.get_id()
-        assert token.user_id == moc_anon_user.get_id()
+        assert client.user_id == mock_anon_user.get_id()
+        assert token.user_id == mock_anon_user.get_id()
         assert token.expires_in == app.config.get("BOOTSTRAP_TOKEN_EXPIRES")
 
-    def test_bootstrap_user(self, app, moc_regular_user):
+    def test_bootstrap_user(self, app, mock_regular_user):
         # Act
         client, token = app.auth_service.bootstrap_user()
 
         # Assert
-        assert client.user_id == moc_regular_user.get_id()
-        assert token.user_id == moc_regular_user.get_id()
+        assert client.user_id == mock_regular_user.get_id()
+        assert token.user_id == mock_regular_user.get_id()
 
-    def test_bootstrap_user_no_capacity(self, app, moc_regular_user):
+    def test_bootstrap_user_no_capacity(self, app, mock_regular_user):
         with pytest.raises(ValidationError):
             _, _ = app.auth_service.bootstrap_user(ratelimit_multiplier=100)
 
-    def test_bootstrap_invalid_scope(self, app, moc_regular_user):
+    def test_bootstrap_invalid_scope(self, app, mock_regular_user):
         with pytest.raises(ValidationError):
             _, _ = app.auth_service.bootstrap_user(scope="invalid")
 
-    def test_bootstrap_valid_scope(self, app, moc_regular_user):
+    def test_bootstrap_valid_scope(self, app, mock_regular_user):
         try:
             _, _ = app.auth_service.bootstrap_user(scope="test_scope")
         except ValidationError:
@@ -320,3 +355,50 @@ class TestProxyService:
 
         # Check that the rate limit was set correctly
         mock_limiter_service.shared_limit.assert_called_once_with(counts=300, per_second=86400)
+
+
+class TestLimiterService:
+    def test_group_endpoint(self, app):
+        # Arrange
+        app.limiter_service._ratelimit_groups = {
+            "group1": {
+                "counts": 1,
+                "per_second": 3600 * 10,
+                "patterns": ["/example/.*"],
+            }
+        }
+        app.limiter_service._symbolic_ratelimits = {}
+
+        # Act
+        app.limiter_service.group_endpoint("/example/test", 300, 86400)
+
+        # Assert
+        assert app.limiter_service._symbolic_ratelimits["group1"] == {
+            "name": "group1",
+            "counts": 1,
+            "per_second": 3600 * 10,
+        }
+
+    def test_shared_limit_with_limit_value(self, app):
+        # Arrange
+        limit_value = "100/minute"
+
+        # Act
+        decorator = app.limiter_service.shared_limit(limit_value=limit_value)
+
+        # Assert
+        assert not callable(decorator.limit_value)
+        assert decorator.limit_value == limit_value
+
+    def test_shared_limit_with_counts_and_per_second(self, app, mock_current_token):
+        # Arrange
+        counts, per_second = 100, 60
+        with app.test_request_context("/"):
+            # Act
+            decorator = app.limiter_service.shared_limit(counts=counts, per_second=per_second)
+
+            # Assert
+            assert callable(decorator.limit_value)
+
+            expected_limit_value = f"{int(counts * mock_current_token.client.ratelimit_multiplier)}/{per_second} second"
+            assert decorator.limit_value() == expected_limit_value

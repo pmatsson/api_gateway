@@ -946,7 +946,7 @@ class SecurityService(GatewayService, Security):
         """
         try:
             self._mail_util.validate(email)
-        except ValidationError:
+        except Exception:
             return False
 
         return True

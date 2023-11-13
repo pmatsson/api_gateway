@@ -51,12 +51,14 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "-v -Wdefault --cov=<package_name>"
+addopts = "-v -Wdefault --cov=apigateway"
 cache_dir = ".tmp/"
-testpaths = ["tests"]
+testpaths = ["apigateway/tests"]
 
 [tool.coverage.run]
 data_file = ".tmp/.coverage"
+source = ["apigateway/"]
+omit = ["*tests*", "*migrations*"]
 
 [tool.coverage.report]
 skip_empty = true
@@ -64,7 +66,7 @@ skip_covered = true
 
 [tool.isort]
 profile = "black"
-known_first_party = ["<package_name>", "tests"]
+known_first_party = ["apigateway", "tests"]
 
 [tool.black]
 line-length = 99 # override black's default line-length
