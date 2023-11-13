@@ -5,7 +5,7 @@ from flask import g
 
 from apigateway.app import create_app
 from apigateway.exceptions import ValidationError
-from apigateway.models import OAuth2Client, OAuth2Token, base_model
+from apigateway.models import OAuth2Client, OAuth2Token, User, base_model
 from apigateway.services import GatewayService
 
 
@@ -402,3 +402,65 @@ class TestLimiterService:
 
             expected_limit_value = f"{int(counts * mock_current_token.client.ratelimit_multiplier)}/{per_second} second"
             assert decorator.limit_value() == expected_limit_value
+
+
+class TestSecurityService:
+    def test_create_user(self, app):
+        email = "test@gmail.com"
+        password = "test_password"
+        user = app.security_service.create_user(email, password)
+        assert user.email == email
+        assert user.password is not None
+
+    def test_create_role(self, app):
+        name = "test_role"
+        description = "This is a test role"
+        role = app.security_service.create_role(name, description)
+        assert role.name == name
+        assert role.description == description
+
+    def test_add_role_to_user(self, app):
+        email = "test@gmail.com"
+        password = "test_password"
+        user = app.security_service.create_user(email, password)
+        name = "test_role"
+        description = "This is a test role"
+        role = app.security_service.create_role(name, description)
+        result = app.security_service.add_role_to_user(user, role)
+        assert result is True
+        assert role in user.roles
+
+    def test_change_password(self, app):
+        email = "test@gmail.com"
+        password = "test_password"
+        user = app.security_service.create_user(email, password)
+        new_password = "new_test_password"
+        updated_user = app.security_service.change_password(user, new_password)
+        assert updated_user.password != new_password
+        assert updated_user.validate_password(new_password)
+
+    def test_validate_email(self, app):
+        valid_email = "test@gmail.com"
+        invalid_email = "test"
+        assert app.security_service.validate_email(valid_email) is True
+        assert app.security_service.validate_email(invalid_email) is False
+
+    def test_change_email(self, app):
+        email = "test@gmail.com"
+        password = "test_password"
+        user = app.security_service.create_user(email, password)
+        new_email = "new_test@gmail.com"
+        updated_user = app.security_service.change_email(user, new_email)
+        assert updated_user.email == new_email
+
+    def test_generate_email_token(self, app, mock_regular_user):
+        token = app.security_service.generate_email_token()
+        assert isinstance(token, str)
+
+    def test_verify_email_token(self, app, mock_regular_user):
+        user = app.security_service.create_user(
+            mock_regular_user.email, "test_password", id=mock_regular_user.id
+        )
+        token = app.security_service.generate_email_token()
+        user = app.security_service.verify_email_token(token)
+        assert isinstance(user, User)
