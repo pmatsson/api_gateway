@@ -2,7 +2,6 @@ from authlib.integrations.flask_oauth2 import AuthorizationServer
 from flask_alembic import Alembic
 from flask_login import LoginManager
 from flask_marshmallow import Marshmallow
-from flask_restful import Api
 from flask_sqlalchemy import SQLAlchemy as FlaskSQLAlchemy
 from flask_wtf import CSRFProtect
 
@@ -33,6 +32,3 @@ proxy_service = ProxyService()
 redis_service = RedisService()
 limiter_service = LimiterService()
 cache_service = CacheService()
-
-# Other
-flask_api = Api()

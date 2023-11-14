@@ -4,6 +4,7 @@ from authlib.integrations.sqla_oauth2 import (
     create_save_token_func,
 )
 from flask import Flask, jsonify, session
+from flask_restful import Api
 from flask_wtf.csrf import CSRFError
 from marshmallow import ValidationError
 
@@ -14,7 +15,6 @@ from apigateway.extensions import (
     cache_service,
     csrf,
     db,
-    flask_api,
     limiter_service,
     login_manager,
     ma,
@@ -64,7 +64,6 @@ def register_extensions(app: Flask):
     limiter_service.init_app(app)
     cache_service.init_app(app)
 
-    flask_api.init_app(app)
     csrf.init_app(app)
 
 
@@ -100,7 +99,7 @@ def register_hooks(app: Flask):
         return jsonify({"error": e.value}), 404
 
 
-def register_views():
+def register_views(flask_api: Api):
     """Registers the views for the Flask application."""
     flask_api.add_resource(Bootstrap, "/bootstrap")
     flask_api.add_resource(CSRFView, "/csrf")
@@ -122,8 +121,8 @@ def create_app(**config):
     """
 
     app = ADSFlask(__name__, static_folder=None, local_config=config)
-
-    register_views()
+    flask_api = Api(app)
+    register_views(flask_api)
     register_extensions(app)
     register_hooks(app)
 

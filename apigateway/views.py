@@ -57,7 +57,7 @@ class Bootstrap(Resource):
 
         else:
             _, token = current_app.auth_service.bootstrap_user(
-                params.client_name,
+                client_name=params.client_name,
                 scope=params.scope,
                 ratelimit_multiplier=params.ratelimit,
                 individual_ratelimit_multipliers=params.individual_ratelimits,
@@ -141,7 +141,8 @@ class ProxyView(View):
             response: requests.Response = http_method_func(
                 remote_url, data=request.get_data(), headers=request.headers
             )
-            return response.content, response.status_code
+
+            return response.content, response.status_code, dict(response.headers)
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
             return b"504 Gateway Timeout", 504
 
