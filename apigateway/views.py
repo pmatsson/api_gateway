@@ -171,7 +171,7 @@ class CSRFView(Resource):
         """
         Returns a csrf token
         """
-        return {"csrf": generate_csrf()}
+        return {"csrf": generate_csrf()}, 200
 
 
 class StatusView(Resource):
@@ -189,7 +189,7 @@ class OAuthProtectedView(Resource):
         return [current_app.auth_service.require_oauth()]
 
     def get(self):
-        return {"app": current_app.name, "oauth": current_token.user.email}
+        return {"app": current_app.name, "oauth": current_token.user.email}, 200
 
 
 class UserManagementView(Resource):
@@ -275,12 +275,12 @@ class ChangeEmailView(Resource):
         if not current_app.security_service.validate_email(params.email):
             return {"error": "the provided email address is invalid"}, 400
 
-        if not User.query.filter_by(email=params.email).first() is None:
-            return {"error": "{0} has already been registered".format(params.email)}, 403
-
-        token: str = current_app.security_service.generate_email_token()
-
         with current_app.session_scope() as session:
+            if not session.query(User).filter_by(email=params.email).first() is None:
+                return {"error": "{0} has already been registered".format(params.email)}, 403
+
+            token: str = current_app.security_service.generate_email_token()
+
             email_change_request = EmailChangeRequest(
                 token=token,
                 user_id=current_user.id,
@@ -290,21 +290,21 @@ class ChangeEmailView(Resource):
             session.add(email_change_request)
             session.commit()
 
-        # Verify new email address
-        send_email(
-            current_app.config["MAIL_DEFAULT_SENDER"],
-            params.email,
-            VerificationEmail,
-            verification_url=url_for("verifyemailview", token=token, _external=True),
-        )
+            # Verify new email address
+            send_email(
+                current_app.config["MAIL_DEFAULT_SENDER"],
+                params.email,
+                VerificationEmail,
+                verification_url=url_for("verifyemailview", token=token, _external=True),
+            )
 
-        # Notify previous email address of change
-        send_email(
-            current_app.config["MAIL_DEFAULT_SENDER"],
-            current_user.email,
-            EmailChangedNotification,
-        )
-        return {"message": "success"}, 200
+            # Notify previous email address of change
+            send_email(
+                current_app.config["MAIL_DEFAULT_SENDER"],
+                current_user.email,
+                EmailChangedNotification,
+            )
+            return {"message": "success"}, 200
 
 
 class VerifyEmailView(Resource):
