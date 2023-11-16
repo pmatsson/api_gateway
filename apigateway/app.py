@@ -15,6 +15,7 @@ from apigateway.extensions import (
     cache_service,
     csrf,
     db,
+    kakfa_producer_service,
     limiter_service,
     login_manager,
     ma,
@@ -63,6 +64,7 @@ def register_extensions(app: Flask):
     redis_service.init_app(app)
     limiter_service.init_app(app)
     cache_service.init_app(app)
+    kakfa_producer_service.init_app(app)
 
     csrf.init_app(app)
 

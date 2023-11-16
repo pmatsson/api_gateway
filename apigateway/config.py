@@ -59,3 +59,8 @@ SECURITY_SERVICE_VERIFY_EMAIL_SALT = environ.get(
 )
 
 USER_DEFAULT_SCOPES = ["user"]
+
+
+# Kafka producer service
+KAFKA_PRODUCER_SERVICE_BOOTSTRAP_SERVERS = ["localhost:9092"]
+KAFKA_PRODUCER_SERVICE_REQUEST_TOPIC = "gatewayRequests"

@@ -28,7 +28,8 @@ dependencies = [
     'portalocker==2.8.2',
     'redis',
     'sqlalchemy-utils',
-    'Flask-Caching'
+    'Flask-Caching',
+    'kafka-python'
 ]
 
 [project.urls]

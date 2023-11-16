@@ -1,5 +1,6 @@
 """ Module defining API Gateway services. """
 import hashlib
+import json
 import logging
 import os
 import re
@@ -24,6 +25,7 @@ from flask_limiter.util import get_remote_address
 from flask_login import current_user
 from flask_security import Security, SQLAlchemyUserDatastore
 from itsdangerous import URLSafeTimedSerializer
+from kafka import KafkaProducer
 from redis import Redis, StrictRedis
 from sqlalchemy import func
 from werkzeug.datastructures import Headers
@@ -1012,3 +1014,49 @@ class SecurityService(GatewayService, Security):
             raise NotFoundError("no user associated with that verification token")
 
         return user
+
+
+class KafkaProducerService(GatewayService):
+    def __init__(self, name: str = "KAFKA_PRODUCER_SERVICE"):
+        GatewayService.__init__(self, name)
+
+    def init_app(self, app: Flask):
+        super().init_app(app)
+        self._producer = KafkaProducer(
+            bootstrap_servers=",".join(
+                self.get_service_config("BOOTSTRAP_SERVERS", ["localhost:9092"])
+            ),
+            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+        )
+        self._register_hooks(app)
+
+    def _register_hooks(self, app: Flask):
+        @app.after_request
+        def _after_request_hook(response: Response):
+            self._producer.send(
+                self.get_service_config("REQUEST_TOPIC"),
+                {
+                    "user_id": current_user.get_id(),
+                    "client_id": current_token.client_id
+                    if current_token and hasattr(current_token, "client_id")
+                    else "",
+                    "endpoint": request.endpoint,
+                    "method": request.method,
+                    "timestamp": datetime.now().isoformat(),
+                    "status_code": response.status_code,
+                },
+            )
+
+            return response
+
+    def __getattr__(self, name):
+        return getattr(self._producer, name, None)
+
+    def __getitem__(self, name):
+        return self._producer[name]
+
+    def __setitem__(self, name, value):
+        self._producer[name] = value
+
+    def __delitem__(self, name):
+        del self._producer[name]

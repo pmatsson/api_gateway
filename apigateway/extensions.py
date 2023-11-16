@@ -9,6 +9,7 @@ from apigateway.models import base_model
 from apigateway.services import (
     AuthService,
     CacheService,
+    KafkaProducerService,
     LimiterService,
     ProxyService,
     RedisService,
@@ -32,3 +33,4 @@ proxy_service = ProxyService()
 redis_service = RedisService()
 limiter_service = LimiterService()
 cache_service = CacheService()
+kakfa_producer_service = KafkaProducerService()
