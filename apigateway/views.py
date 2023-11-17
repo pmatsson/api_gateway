@@ -29,7 +29,7 @@ class Bootstrap(Resource):
 
         if not current_user.is_authenticated:
             bootstrap_user: User = User.query.filter_by(is_anonymous_bootstrap_user=True).first()
-            if not login_user(bootstrap_user):
+            if not bootstrap_user or not login_user(bootstrap_user):
                 abort(500, message="Could not login as bootstrap user")
 
         if current_user.is_anonymous_bootstrap_user and (

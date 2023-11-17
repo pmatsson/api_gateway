@@ -84,11 +84,11 @@ user_auth_post_request_schema = marshmallow_dataclass.class_schema(UserAuthPostR
 
 @dataclass
 class UserRegisterPostRequestSchema:
-    given_name: str = field()
-    family_name: str = field()
     email: str = field(metadata={"validate": marshmallow.validate.Email()})
     password1: str = field(metadata={"validate": PasswordValidator()})
     password2: str = field()
+    given_name: str = None
+    family_name: str = None
 
     @validates_schema
     def validate_passwords_equal(self, data, **kwargs):

@@ -1022,30 +1022,40 @@ class KafkaProducerService(GatewayService):
 
     def init_app(self, app: Flask):
         super().init_app(app)
-        self._producer = KafkaProducer(
-            bootstrap_servers=",".join(
-                self.get_service_config("BOOTSTRAP_SERVERS", ["localhost:9092"])
-            ),
-            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-        )
+        self._producer = self._init_producer()
         self._register_hooks(app)
+
+    def _init_producer(self) -> KafkaProducer | None:
+        try:
+            return KafkaProducer(
+                bootstrap_servers=",".join(
+                    self.get_service_config("BOOTSTRAP_SERVERS", ["localhost:9092"])
+                ),
+                value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+                request_timeout_ms=self.get_service_config("REQUEST_TIMEOUT_MS", 500),
+                acks=0,  # Fire and forget. We don't want issues with the broker to affect the Gateway.
+            )
+        except Exception as ex:
+            self._logger.error("Could not connect to Kafka: %s", ex)
+            return None
 
     def _register_hooks(self, app: Flask):
         @app.after_request
         def _after_request_hook(response: Response):
-            self._producer.send(
-                self.get_service_config("REQUEST_TOPIC"),
-                {
-                    "user_id": current_user.get_id(),
-                    "client_id": current_token.client.client_id
-                    if current_token and hasattr(current_token, "client")
-                    else "",
-                    "endpoint": request.endpoint,
-                    "method": request.method,
-                    "timestamp": datetime.now().isoformat(),
-                    "status_code": response.status_code,
-                },
-            )
+            if self._producer is not None:
+                self._producer.send(
+                    self.get_service_config("REQUEST_TOPIC"),
+                    {
+                        "user_id": current_user.get_id(),
+                        "client_id": current_token.client.client_id
+                        if current_token and hasattr(current_token, "client")
+                        else "",
+                        "endpoint": request.endpoint,
+                        "method": request.method,
+                        "timestamp": datetime.now().isoformat(),
+                        "status_code": response.status_code,
+                    },
+                )
 
             return response
 
