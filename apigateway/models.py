@@ -82,7 +82,7 @@ class OAuth2Client(base_model, OAuth2ClientMixin):
     __tablename__ = "oauth2client"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    user_id = sa.Column(sa.Integer, sa.ForeignKey("user.fs_uniquifier", ondelete="CASCADE"))
+    user_id = sa.Column(sa.String, sa.ForeignKey("user.fs_uniquifier", ondelete="CASCADE"))
     ratelimit_multiplier = sa.Column(sa.Float, default=0.0)
     individual_ratelimit_multipliers = sa.Column(sa.JSON)
 
@@ -105,7 +105,7 @@ class OAuth2Token(base_model, OAuth2TokenMixin):
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     user_id = sa.Column(sa.Integer, sa.ForeignKey("user.fs_uniquifier", ondelete="CASCADE"))
     user = relationship("User")
-    client_id = sa.Column(sa.String(48), sa.ForeignKey("oauth2client.client_id"))
+    client_id = sa.Column(sa.Integer(), sa.ForeignKey("oauth2client.id"))
     client = relationship("OAuth2Client")
 
 
@@ -114,6 +114,6 @@ class EmailChangeRequest(base_model):
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     token = sa.Column(sa.String(255), unique=True)
-    user_id = sa.Column(sa.String, sa.ForeignKey("user.id", ondelete="CASCADE"))
+    user_id = sa.Column(sa.Integer(), sa.ForeignKey("user.id", ondelete="CASCADE"))
     user = relationship("User")
     new_email = sa.Column(sa.Text)

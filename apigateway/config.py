@@ -9,7 +9,7 @@ LOGGING_LEVEL = "DEBUG"
 LOG_STDOUT = False
 
 # Database
-SQLALCHEMY_DATABASE_URI = "sqlite:////home/philip/local.db"
+SQLALCHEMY_DATABASE_URI = "postgresql://user:password@db:5432/gateway"
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 SECRET_KEY = environ.get("PROXY_SECRET_KEY", "secret")
 
@@ -29,7 +29,8 @@ PROXY_SERVICE_WEBSERVICES = {"http://192.168.1.187:8181": "/scan"}
 PROXY_SERVICE_ALLOWED_HEADERS = ["Content-Type", "Content-Disposition"]
 
 # Limiter service
-LIMITER_SERVICE_STORAGE_URI = "redis://localhost:6379/0"
+LIMITER_SERVICE_STORAGE_URI = "redis://redis:6379/0"
+
 LIMITER_SERVICE_STRATEGY = "fixed-window"
 LIMITER_SERVICE_GROUPS = {
     "example": {
@@ -40,14 +41,15 @@ LIMITER_SERVICE_GROUPS = {
 }
 
 # Redis service
-REDIS_SERVICE_URI = "redis://localhost:6379/0"
+REDIS_SERVICE_URL = "redis://redis:6379/0"
 
 
 # Cache service
 CACHE_SERVICE_CACHE_TYPE = "RedisCache"
 CACHE_SERVICE_REDIS_URI = (
     # NOTE: Do not use the same redis DB as other services
-    "redis://localhost:6379/1"
+    # "redis://localhost:6379/1"
+    "redis://redis:6379/1"
 )
 
 # Security service

@@ -536,7 +536,7 @@ class LimiterService(GatewayService, Limiter):
             return response
 
         def _token_authenticated(sender, token=None, **kwargs):
-            client = OAuth2Client.query.filter_by(client_id=token.client_id).first()
+            client = OAuth2Client.query.filter_by(client_id=token.client.client_id).first()
             level = getattr(client, "ratelimit", 1.0) if client else 0.0
 
             request.headers.add_header("X-Adsws-Ratelimit-Level", str(level))
@@ -712,7 +712,7 @@ class RedisService(GatewayService):
     def init_app(self, app: Flask):
         super().init_app(app)
 
-        redis_url = self.get_service_config("URL", "redis://localhost:6379/0")
+        redis_url = self.get_service_config("URL", "redis://redis:6379/0")
         self._redis_client = self._provider_class.from_url(redis_url, **self._provider_kwargs)
 
     def get_connection_pool(self):
@@ -1037,8 +1037,8 @@ class KafkaProducerService(GatewayService):
                 self.get_service_config("REQUEST_TOPIC"),
                 {
                     "user_id": current_user.get_id(),
-                    "client_id": current_token.client_id
-                    if current_token and hasattr(current_token, "client_id")
+                    "client_id": current_token.client.client_id
+                    if current_token and hasattr(current_token, "client")
                     else "",
                     "endpoint": request.endpoint,
                     "method": request.method,

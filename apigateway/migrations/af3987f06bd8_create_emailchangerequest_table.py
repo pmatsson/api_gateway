@@ -23,7 +23,7 @@ def upgrade() -> None:
         "email_change_request",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("token", sa.String(length=255), nullable=True),
-        sa.Column("user_id", sa.String(), nullable=True),
+        sa.Column("user_id", sa.Integer(), nullable=True),
         sa.Column("new_email", sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["user.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
