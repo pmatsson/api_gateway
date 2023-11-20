@@ -13,6 +13,7 @@ from apigateway.extensions import (
     alembic,
     auth_service,
     cache_service,
+    cors,
     csrf,
     db,
     kakfa_producer_service,
@@ -49,6 +50,14 @@ def register_extensions(app: Flask):
     db.init_app(app)
     ma.init_app(app)
     alembic.init_app(app)
+
+    cors.init_app(
+        app,
+        origins=app.config.get("CORS_DOMAINS"),
+        allow_headers=app.config.get("CORS_HEADERS"),
+        methods=app.config.get("CORS_METHODS"),
+        supports_credentials=True,
+    )
 
     oauth2_server.init_app(
         app,

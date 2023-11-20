@@ -4,6 +4,22 @@ from os import environ
 DEBUG = True
 MAIL_DEFAULT_SENDER = "no-reply@adslabs.org"
 
+CORS_HEADERS = [
+    "Content-Type",
+    "X-BB-Api-Client-Version",
+    "Authorization",
+    "Accept",
+]
+
+CORS_DOMAINS = [
+    "http://localhost:8000",
+    "http://localhost:5000",
+    "http://adslabs.org",
+]
+
+CORS_METHODS = ["GET", "OPTIONS", "POST"]
+
+
 # Logging
 LOGGING_LEVEL = "DEBUG"
 LOG_STDOUT = False

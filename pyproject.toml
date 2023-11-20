@@ -29,7 +29,8 @@ dependencies = [
     'redis',
     'sqlalchemy-utils',
     'Flask-Caching',
-    'kafka-python'
+    'kafka-python',
+    'flask-cors',
 ]
 
 [project.urls]

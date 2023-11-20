@@ -1,5 +1,6 @@
 from authlib.integrations.flask_oauth2 import AuthorizationServer
 from flask_alembic import Alembic
+from flask_cors import CORS
 from flask_login import LoginManager
 from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy as FlaskSQLAlchemy
@@ -25,6 +26,7 @@ ma = Marshmallow()
 login_manager = LoginManager()
 oauth2_server = AuthorizationServer()
 csrf = CSRFProtect()
+cors = CORS()
 
 # Services
 security_service = SecurityService()
