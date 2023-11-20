@@ -5,12 +5,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 from flask_login import current_user, login_user
-from flask_security.core import AnonymousUser
 from marshmallow import ValidationError
 from werkzeug.exceptions import Unauthorized
 
 from apigateway.email_templates import EmailChangedNotification, VerificationEmail
-from apigateway.models import EmailChangeRequest, User
+from apigateway.models import AnonymousUser, EmailChangeRequest, User
 from apigateway.schemas import bootstrap_get_response_schema
 from apigateway.views import (
     Bootstrap,

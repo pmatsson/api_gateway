@@ -302,8 +302,8 @@ class ResetPasswordView(Resource):
                 }, 403
 
             token: str = current_app.security_service.generate_password_token()
-            self._delete_existing_password_change_requests(session)
-            self._create_password_change_request(session, token)
+            self._delete_existing_password_change_requests(session, user.id)
+            self._create_password_change_request(session, token, user.id)
 
             self._send_password_reset_email(token, token_or_email)
 
@@ -320,37 +320,33 @@ class ResetPasswordView(Resource):
             if password_change_request is None:
                 return {"error": "no user associated with that verification token"}, 404
 
-            if password_change_request.user_id != current_user.id:
-                return {"error": "this token is not associated with your account"}, 403
-
             user: User = current_app.security_service.change_password(
-                current_user, params.password1
+                password_change_request.user, params.password1
             )
 
-            session.delete(password_change_request)
-            session.commit()
+            self._delete_existing_password_change_requests(session, user.id)
 
             login_user(user)
 
             return {"message": "success"}, 200
 
-    def _delete_existing_password_change_requests(self, session):
+    def _delete_existing_password_change_requests(self, session, user_id: int):
         session.query(PasswordChangeRequest).filter(
-            PasswordChangeRequest.user_id == current_user.id
+            PasswordChangeRequest.user_id == user_id
         ).delete()
 
-    def _create_password_change_request(self, session, token):
-        password_change_request = PasswordChangeRequest(token=token, user_id=current_user.id)
+    def _create_password_change_request(self, session, token: str, user_id: int):
+        password_change_request = PasswordChangeRequest(token=token, user_id=user_id)
 
         session.add(password_change_request)
         session.commit()
 
-    def _send_password_reset_email(self, token, email):
+    def _send_password_reset_email(self, token: str, email: str):
         send_email(
             current_app.config["MAIL_DEFAULT_SENDER"],
             email,
             PasswordResetEmail,
-            verification_url=url_for("resetpasswordview", token=token, _external=True),
+            verification_url=url_for("resetpasswordview", token_or_email=token, _external=True),
         )
 
 
@@ -374,10 +370,9 @@ class ChangeEmailView(Resource):
             if email_change_request is None:
                 return {"error": "no user associated with that verification token"}, 404
 
-            if email_change_request.user_id != current_user.id:
-                return {"error": "this token is not associated with your account"}, 403
-
-            current_app.security_service.change_email(current_user, email_change_request.new_email)
+            current_app.security_service.change_email(
+                email_change_request.user, email_change_request.new_email
+            )
 
             session.delete(email_change_request)
             session.commit()
@@ -417,7 +412,7 @@ class ChangeEmailView(Resource):
             EmailChangeRequest.user_id == current_user.id
         ).delete()
 
-    def _create_email_change_request(self, session, token, new_email):
+    def _create_email_change_request(self, session, token: str, new_email: str):
         email_change_request = EmailChangeRequest(
             token=token,
             user_id=current_user.id,
@@ -427,10 +422,10 @@ class ChangeEmailView(Resource):
         session.add(email_change_request)
         session.commit()
 
-    def _is_email_registered(self, session, email):
+    def _is_email_registered(self, session, email: str):
         return session.query(User).filter_by(email=email).first() is not None
 
-    def _send_verification_email(self, token, new_email):
+    def _send_verification_email(self, token, new_email: str):
         send_email(
             current_app.config["MAIL_DEFAULT_SENDER"],
             new_email,

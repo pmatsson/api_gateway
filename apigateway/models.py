@@ -3,11 +3,13 @@ from typing import List
 import sqlalchemy as sa
 from authlib.integrations.sqla_oauth2 import OAuth2ClientMixin, OAuth2TokenMixin
 from flask import current_app
+from flask_login import AnonymousUserMixin
 from flask_security import RoleMixin, UserMixin
 from flask_security.utils import hash_password, verify_password
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
+from werkzeug.datastructures import ImmutableList
 from werkzeug.security import gen_salt
 
 base_model = declarative_base()
@@ -62,6 +64,21 @@ class User(base_model, UserMixin):
 
     def validate_password(self, password) -> bool:
         return verify_password(password, self.password)
+
+
+class AnonymousUser(AnonymousUserMixin):
+    """AnonymousUser definition"""
+
+    def __init__(self):
+        self.roles = ImmutableList()
+
+    def has_role(self, *args):
+        """Returns `False`"""
+        return False
+
+    @hybrid_property
+    def is_anonymous_bootstrap_user(self):
+        return False
 
 
 class Role(base_model, RoleMixin):

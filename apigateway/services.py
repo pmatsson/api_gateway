@@ -32,7 +32,7 @@ from werkzeug.datastructures import Headers
 from werkzeug.security import gen_salt
 
 from apigateway.exceptions import NoClientError, NotFoundError, ValidationError
-from apigateway.models import OAuth2Client, OAuth2Token, Role, User
+from apigateway.models import AnonymousUser, OAuth2Client, OAuth2Token, Role, User
 from apigateway.views import ProxyView
 
 
@@ -849,7 +849,12 @@ class SecurityService(GatewayService, Security):
         app.config.setdefault(
             "SECURITY_PASSWORD_SALT", self.get_service_config("VERIFY_PASSWORD_SALT")
         )
-        Security.init_app(self, app, datastore=SQLAlchemyUserDatastore(app.db, User, Role))
+        Security.init_app(
+            self,
+            app,
+            datastore=SQLAlchemyUserDatastore(app.db, User, Role),
+            anonymous_user=AnonymousUser,
+        )
 
         self._token_serializer = URLSafeTimedSerializer(self.get_service_config("SECRET_KEY"))
 
@@ -993,7 +998,7 @@ class SecurityService(GatewayService, Security):
             str: The password reset token.
         """
         return self.generate_token(
-            current_user.id, salt=self.get_service_config("VERIFY_PASSWORD_SALT")
+            "password_reset", salt=self.get_service_config("VERIFY_PASSWORD_SALT")
         )
 
     def generate_token(self, content: str, salt: str):
