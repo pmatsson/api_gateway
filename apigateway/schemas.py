@@ -123,3 +123,17 @@ class ChangeEmailRequestSchema:
 
 
 change_email_request_schema = marshmallow_dataclass.class_schema(ChangeEmailRequestSchema)()
+
+
+@dataclass
+class ResetPasswordRequestSchema:
+    password1: str = field(metadata={"validate": PasswordValidator()})
+    password2: str = field()
+
+    @validates_schema
+    def validate_passwords_equal(self, data, **kwargs):
+        if data["password1"] != data["password2"]:
+            raise ValidationError("Passwords do not match", field_name="password2")
+
+
+reset_password_request_schema = marshmallow_dataclass.class_schema(ResetPasswordRequestSchema)()

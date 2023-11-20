@@ -846,7 +846,9 @@ class SecurityService(GatewayService, Security):
         app.config.setdefault(
             "SECURITY_PASSWORD_HASH", self.get_service_config("PASSWORD_HASH", "pbkdf2_sha512")
         )
-        app.config.setdefault("SECURITY_PASSWORD_SALT", self.get_service_config("PASSWORD_SALT"))
+        app.config.setdefault(
+            "SECURITY_PASSWORD_SALT", self.get_service_config("VERIFY_PASSWORD_SALT")
+        )
         Security.init_app(self, app, datastore=SQLAlchemyUserDatastore(app.db, User, Role))
 
         self._token_serializer = URLSafeTimedSerializer(self.get_service_config("SECRET_KEY"))
@@ -979,11 +981,57 @@ class SecurityService(GatewayService, Security):
         Returns:
             str: The email verification token.
         """
-        return self._token_serializer.dumps(
+        return self.generate_token(
             current_user.id, salt=self.get_service_config("VERIFY_EMAIL_SALT")
         )
 
+    def generate_password_token(self) -> str:
+        """
+        Generate a password reset token for the current user.
+
+        Returns:
+            str: The password reset token.
+        """
+        return self.generate_token(
+            current_user.id, salt=self.get_service_config("VERIFY_PASSWORD_SALT")
+        )
+
+    def generate_token(self, content: str, salt: str):
+        """
+        Generate a token for the given content and salt.
+
+        Returns:
+            str: The generated token.
+        """
+        return self._token_serializer.dumps(content, salt=salt)
+
+    def verify_password_token(self, token: str) -> User:
+        """
+        Verifies the password reset token and returns the associated user.
+
+        Args:
+            token (str): The password reset token to verify.
+
+        Returns:
+            User: The user associated with the token if it's valid, None otherwise.
+        """
+        salt = self.get_service_config("VERIFY_PASSWORD_SALT")
+        return self.verify_token(token, salt)
+
     def verify_email_token(self, token: str) -> User:
+        """
+        Verifies the email confirmation token and returns the associated user.
+
+        Args:
+            token (str): The email confirmation token to verify.
+
+        Returns:
+            User: The user associated with the token if it's valid, None otherwise.
+        """
+        salt = self.get_service_config("VERIFY_EMAIL_SALT")
+        return self.verify_token(token, salt)
+
+    def verify_token(self, token: str, salt: str) -> User:
         """
         Verify email token and return the User object associated with the token.
 
@@ -999,9 +1047,7 @@ class SecurityService(GatewayService, Security):
             User: The user object associated with the verification token.
         """
         try:
-            user_id = self._token_serializer.loads(
-                token, max_age=86400, salt=self.get_service_config("VERIFY_EMAIL_SALT")
-            )
+            user_id = self._token_serializer.loads(token, max_age=86400, salt=salt)
         except Exception as ex:
             self._logger.warning(
                 "{0} verification token not validated. Reason: {1}".format(token, ex)

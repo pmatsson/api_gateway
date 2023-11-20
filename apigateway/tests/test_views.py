@@ -22,7 +22,6 @@ from apigateway.views import (
     ProxyView,
     UserAuthView,
     UserManagementView,
-    VerifyEmailView,
 )
 
 
@@ -459,7 +458,7 @@ class TestChangeEmailView:
 class TestVerifyEmailView:
     @pytest.fixture
     def verify_email_view(self):
-        return VerifyEmailView()
+        return ChangeEmailView()
 
     @pytest.fixture
     def authenticated_user(self, app):

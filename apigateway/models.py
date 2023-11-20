@@ -117,3 +117,12 @@ class EmailChangeRequest(base_model):
     user_id = sa.Column(sa.Integer(), sa.ForeignKey("user.id", ondelete="CASCADE"))
     user = relationship("User")
     new_email = sa.Column(sa.Text)
+
+
+class PasswordChangeRequest(base_model):
+    __tablename__ = "password_change_request"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    token = sa.Column(sa.String(255), unique=True)
+    user_id = sa.Column(sa.Integer(), sa.ForeignKey("user.id", ondelete="CASCADE"))
+    user = relationship("User")

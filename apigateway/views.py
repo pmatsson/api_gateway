@@ -12,15 +12,17 @@ from flask_wtf.csrf import generate_csrf
 
 from apigateway.email_templates import (
     EmailChangedNotification,
+    PasswordResetEmail,
     VerificationEmail,
     WelcomeVerificationEmail,
 )
-from apigateway.models import EmailChangeRequest, User
+from apigateway.models import EmailChangeRequest, PasswordChangeRequest, User
 from apigateway.schemas import (
     bootstrap_get_request_schema,
     bootstrap_get_response_schema,
     change_email_request_schema,
     change_password_request_schema,
+    reset_password_request_schema,
     user_auth_post_request_schema,
     user_register_post_request_schema,
 )
@@ -276,14 +278,113 @@ class ChangePasswordView(Resource):
         return {"message": "success"}, 200
 
 
+class ResetPasswordView(Resource):
+    def get(self, token_or_email):
+        user = current_app.security_service.verify_password_token(token=token_or_email)
+        return {"email": user.email}, 200
+
+    def post(self, token_or_email):
+        if not verify_recaptcha(request):
+            return {"error": "captcha was not verified"}, 403
+
+        with current_app.session_scope() as session:
+            user: User = session.query(User).filter_by(email=token_or_email).first()
+
+            if user is None:
+                return {"error": "no such user exists"}, 404
+
+            if user.is_anonymous_bootstrap_user:
+                return {"error": "cannot reset password for anonymous bootstrap user"}, 403
+
+            if not user.confirmed_at:
+                return {
+                    "error": "this email was never verified. It will be deleted from out database within a day"
+                }, 403
+
+            token: str = current_app.security_service.generate_password_token()
+            self._delete_existing_password_change_requests(session)
+            self._create_password_change_request(session, token)
+
+            self._send_password_reset_email(token, token_or_email)
+
+            return {"message": "success"}, 200
+
+    def put(self, token_or_email):
+        params = reset_password_request_schema.load(request.json)
+
+        with current_app.session_scope() as session:
+            password_change_request = (
+                session.query(PasswordChangeRequest).filter_by(token=token_or_email).first()
+            )
+
+            if password_change_request is None:
+                return {"error": "no user associated with that verification token"}, 404
+
+            if password_change_request.user_id != current_user.id:
+                return {"error": "this token is not associated with your account"}, 403
+
+            user: User = current_app.security_service.change_password(
+                current_user, params.password1
+            )
+
+            session.delete(password_change_request)
+            session.commit()
+
+            login_user(user)
+
+            return {"message": "success"}, 200
+
+    def _delete_existing_password_change_requests(self, session):
+        session.query(PasswordChangeRequest).filter(
+            PasswordChangeRequest.user_id == current_user.id
+        ).delete()
+
+    def _create_password_change_request(self, session, token):
+        password_change_request = PasswordChangeRequest(token=token, user_id=current_user.id)
+
+        session.add(password_change_request)
+        session.commit()
+
+    def _send_password_reset_email(self, token, email):
+        send_email(
+            current_app.config["MAIL_DEFAULT_SENDER"],
+            email,
+            PasswordResetEmail,
+            verification_url=url_for("resetpasswordview", token=token, _external=True),
+        )
+
+
 class ChangeEmailView(Resource):
     @property
     def method_decorators(self):
-        return [
-            current_app.limiter_service.shared_limit("5/600 second"),
-            login_required,
-            require_non_anonymous_bootstrap_user,
-        ]
+        return {
+            "get": [current_app.limiter_service.shared_limit("20/600 second")],
+            "post": [
+                current_app.limiter_service.shared_limit("5/600 second"),
+                login_required,
+                require_non_anonymous_bootstrap_user,
+            ],
+        }
+
+    def get(self, token):
+        user = current_app.security_service.verify_email_token(token)
+        with current_app.session_scope() as session:
+            email_change_request = session.query(EmailChangeRequest).filter_by(token=token).first()
+
+            if email_change_request is None:
+                return {"error": "no user associated with that verification token"}, 404
+
+            if email_change_request.user_id != current_user.id:
+                return {"error": "this token is not associated with your account"}, 403
+
+            current_app.security_service.change_email(current_user, email_change_request.new_email)
+
+            session.delete(email_change_request)
+            session.commit()
+
+            login_user(user)
+
+            return {"message": "success"}, 200
 
     def post(self):
         params = change_email_request_schema.load(request.json)
@@ -295,57 +396,51 @@ class ChangeEmailView(Resource):
             return {"error": "the provided email address is invalid"}, 400
 
         with current_app.session_scope() as session:
-            if not session.query(User).filter_by(email=params.email).first() is None:
+            if self._is_email_registered(session, params.email):
                 return {"error": "{0} has already been registered".format(params.email)}, 403
 
             token: str = current_app.security_service.generate_email_token()
 
-            email_change_request = EmailChangeRequest(
-                token=token,
-                user_id=current_user.id,
-                new_email=params.email,
-            )
-
-            session.add(email_change_request)
-            session.commit()
+            self._delete_existing_email_change_requests(session)
+            self._create_email_change_request(session, token, params.email)
 
             # Verify new email address
-            send_email(
-                current_app.config["MAIL_DEFAULT_SENDER"],
-                params.email,
-                VerificationEmail,
-                verification_url=url_for("verifyemailview", token=token, _external=True),
-            )
+            self._send_verification_email(token, params.email)
 
             # Notify previous email address of change
-            send_email(
-                current_app.config["MAIL_DEFAULT_SENDER"],
-                current_user.email,
-                EmailChangedNotification,
-            )
+            self._send_notify_email_change()
+
             return {"message": "success"}, 200
 
+    def _delete_existing_email_change_requests(self, session):
+        session.query(EmailChangeRequest).filter(
+            EmailChangeRequest.user_id == current_user.id
+        ).delete()
 
-class VerifyEmailView(Resource):
-    @property
-    def method_decorators(self):
-        return [current_app.limiter_service.shared_limit("20/600 second")]
+    def _create_email_change_request(self, session, token, new_email):
+        email_change_request = EmailChangeRequest(
+            token=token,
+            user_id=current_user.id,
+            new_email=new_email,
+        )
 
-    def get(self, token):
-        user = current_app.security_service.verify_email_token(token)
-        with current_app.session_scope() as session:
-            email_change_request = session.query(EmailChangeRequest).filter_by(token=token).first()
+        session.add(email_change_request)
+        session.commit()
 
-            if email_change_request is not None:
-                current_app.security_service.change_email(
-                    current_user, email_change_request.new_email
-                )
+    def _is_email_registered(self, session, email):
+        return session.query(User).filter_by(email=email).first() is not None
 
-                session.delete(email_change_request)
-                session.commit()
+    def _send_verification_email(self, token, new_email):
+        send_email(
+            current_app.config["MAIL_DEFAULT_SENDER"],
+            new_email,
+            VerificationEmail,
+            verification_url=url_for("changeemailview", token=token, _external=True),
+        )
 
-                login_user(user)
-
-                return {"message": "success"}, 200
-            else:
-                return {"error": "no user associated with that verification token"}, 404
+    def _send_notify_email_change(self):
+        send_email(
+            current_app.config["MAIL_DEFAULT_SENDER"],
+            current_user.email,
+            EmailChangedNotification,
+        )
