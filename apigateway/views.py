@@ -10,7 +10,11 @@ from flask_login import current_user, login_required, login_user, logout_user
 from flask_restful import Resource, abort
 from flask_wtf.csrf import generate_csrf
 
-from apigateway.email_templates import EmailChangedNotification, VerificationEmail
+from apigateway.email_templates import (
+    EmailChangedNotification,
+    VerificationEmail,
+    WelcomeVerificationEmail,
+)
 from apigateway.models import EmailChangeRequest, User
 from apigateway.schemas import (
     bootstrap_get_request_schema,
@@ -20,7 +24,11 @@ from apigateway.schemas import (
     user_auth_post_request_schema,
     user_register_post_request_schema,
 )
-from apigateway.utils import require_non_anonymous_bootstrap_user, send_email
+from apigateway.utils import (
+    require_non_anonymous_bootstrap_user,
+    send_email,
+    verify_recaptcha,
+)
 
 
 class Bootstrap(Resource):
@@ -208,6 +216,9 @@ class UserManagementView(Resource):
     def post(self):
         params = user_register_post_request_schema.load(request.json)
 
+        if not verify_recaptcha(request):
+            return {"error": "captcha was not verified"}, 403
+
         user = User.query.filter_by(email=params.email).first()
         if user is not None:
             error_message = f"An account is already registered for {params.email}"
@@ -222,6 +233,14 @@ class UserManagementView(Resource):
                 registered_at=datetime.now(),
                 login_count=0,
             )
+
+            send_email(
+                sender=current_app.config["MAIL_DEFAULT_SENDER"],
+                recipient=params.email,
+                template=WelcomeVerificationEmail,
+                verification_url="<TBD>",
+            )
+
             return {"message": "success"}, 200
         except ValueError as e:
             return {"error": str(e)}, 400
