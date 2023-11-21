@@ -16,6 +16,7 @@ from authlib.integrations.flask_oauth2 import (
     token_authenticated,
 )
 from authlib.integrations.sqla_oauth2 import create_bearer_token_validator
+from cachelib.serializers import RedisSerializer
 from flask import Flask, g, request
 from flask.wrappers import Response
 from flask_caching import Cache
@@ -27,6 +28,7 @@ from flask_security import Security, SQLAlchemyUserDatastore
 from itsdangerous import URLSafeTimedSerializer
 from kafka import KafkaProducer
 from redis import Redis, StrictRedis
+from redis.exceptions import ConnectionError, TimeoutError
 from sqlalchemy import func
 from werkzeug.datastructures import Headers
 from werkzeug.security import gen_salt
@@ -455,12 +457,12 @@ class ProxyService(GatewayService):
             response = requests.get(resource_url, timeout=timeout)
             response.raise_for_status()
 
-            self._app.cache_service.set(resource_url, response)
+            self._app.storage_service.set(resource_url, response)
             return response.json()
         except requests.exceptions.RequestException as ex:
-            if self._app.cache_service.has(resource_url):
+            if self._app.storage_service.has(resource_url):
                 self._logger.debug("Using cached resource document for %s", resource_url)
-                return self._app.cache_service.get(resource_url).json()
+                return self._app.storage_service.get(resource_url).json()
             else:
                 raise ex
 
@@ -481,7 +483,7 @@ class LimiterService(GatewayService, Limiter):
             name (str, optional): The name of the service. Defaults to "LIMITER_SERVICE".
         """
         GatewayService.__init__(self, name)
-        Limiter.__init__(self, key_func=self._key_func)
+        Limiter.__init__(self, key_func=self._key_func, in_memory_fallback_enabled=True)
         self._symbolic_ratelimits = {}
 
     def init_app(self, app: Flask):
@@ -526,17 +528,17 @@ class LimiterService(GatewayService, Limiter):
 
             key: str = f"{self._name}//{request.endpoint}/time"
 
-            existing_value: float = float(self._app.redis_service.get(key) or -1)
+            existing_value: float = float(self._app.storage_service.get(key) or -1)
             if existing_value < 0:
-                self._app.redis_service.set(key, processing_time)
+                self._app.storage_service.set(key, processing_time)
             else:
                 mean_value = (existing_value + processing_time) / 2
-                self._app.redis_service.incrbyfloat(key, mean_value - existing_value)
+                self._app.storage_service.incrbyfloat(key, mean_value - existing_value)
 
             return response
 
         def _token_authenticated(sender, token=None, **kwargs):
-            client = OAuth2Client.query.filter_by(client_id=token.client.client_id).first()
+            client = OAuth2Client.query.filter_by(client_id=token.client_id).first()
             level = getattr(client, "ratelimit", 1.0) if client else 0.0
 
             request.headers.add_header("X-Adsws-Ratelimit-Level", str(level))
@@ -652,7 +654,7 @@ class LimiterService(GatewayService, Limiter):
             int: The cost for the rate limit.
         """
         processing_time_seconds = float(
-            self._app.redis_service.get(f"{self._name}//{request.endpoint}/time") or 0
+            self._app.storage_service.get(f"{self._name}//{request.endpoint}/time") or 0
         )
 
         return 1 if processing_time_seconds <= 1 else int(2 ** (processing_time_seconds - 1))
@@ -715,6 +717,17 @@ class RedisService(GatewayService):
         redis_url = self.get_service_config("URL", "redis://redis:6379/0")
         self._redis_client = self._provider_class.from_url(redis_url, **self._provider_kwargs)
 
+    def alive(self) -> bool:
+        """Checks if the Redis database is alive.
+
+        Returns:
+            bool: True if the Redis database is alive, False otherwise.
+        """
+        try:
+            return self._redis_client.ping()
+        except:  # noqa
+            return False
+
     def get_connection_pool(self):
         if self._redis_client:
             return self._redis_client.connection_pool
@@ -732,6 +745,133 @@ class RedisService(GatewayService):
 
     def __delitem__(self, name):
         del self._redis_client[name]
+
+
+class StorageService(GatewayService):
+    """A service class for interacting with storage.
+
+    This class provides methods for setting, getting, deleting, and incrementing values in storage.
+    It supports both Redis storage and fallbacks to memory storage in case Redis is down.
+    """
+
+    def __init__(self, name: str = "STORAGE_SERVICE"):
+        super().__init__(name)
+        self._fallback_storage: dict = {}
+
+    def init_app(self, app: Flask, redis_service: RedisService):
+        super().init_app(app)
+        self._redis_service = redis_service
+        self._redis_down = False
+        self._serializer = RedisSerializer()
+
+    def _serialize(self, value: any) -> str | bytes:
+        """Serializes the given value.
+
+        Args:
+            value (any): The value to serialize.
+
+        Returns:
+            str | bytes: The serialized value.
+        """
+        if isinstance(value, (int, float, str)):
+            return str(value)
+        else:
+            return self._serializer.dumps(value)
+
+    def _transfer_to_redis(self):
+        """
+        Transfers the data from the fallback storage to Redis.
+
+        This method iterates over the items in the fallback storage and transfers them to Redis.
+        After the transfer is complete, the fallback storage is cleared.
+        """
+        for key, value in self._fallback_storage.items():
+            if isinstance(value, dict):
+                value = json.dumps(value)
+            self._redis_service.set(key, self._serialize(value))
+        self._fallback_storage.clear()
+
+    def handle_redis_exception(func):
+        def wrapper(self, *args, **kwargs):
+            if self._redis_down and self._redis_service.alive():
+                self._redis_down = False
+                self._logger.info("Redis is back up, transferring data from fallback storage")
+                self._transfer_to_redis()
+
+            try:
+                return func(self, *args, **kwargs)
+            except (ConnectionError, TimeoutError):
+                self._redis_down = True
+                self._logger.error("Redis is down, falling back to local storage")
+                return func(self, *args, **kwargs)
+            except Exception as ex:
+                self._logger.error("Failed to handle Redis exception", ex)
+                raise
+
+        return wrapper
+
+    @handle_redis_exception
+    def set(self, key: str, value: str, timeout: int = None) -> bool:
+        if not self._redis_down:
+            value = self._serialize(value)
+
+            if timeout is None:
+                return bool(self._redis_service.set(key, value))
+            else:
+                return bool(self._redis_service.setex(key, timeout, value))
+        else:
+            self._fallback_storage[key] = value
+            return True
+
+    @handle_redis_exception
+    def get(self, key: str) -> str:
+        if not self._redis_down:
+            value = self._redis_service.get(key)
+
+            if value is not None:
+                value = self._serializer.loads(value)
+
+            return value
+        else:
+            return self._fallback_storage.get(key)
+
+    @handle_redis_exception
+    def delete(self, key: str) -> bool:
+        if not self._redis_down:
+            return bool(self._redis_service.delete(key))
+        else:
+            return bool(self._fallback_storage.pop(key, None))
+
+    @handle_redis_exception
+    def incr(self, key: str) -> int:
+        if not self._redis_down:
+            return self._redis_service.incr(key)
+        else:
+            self._fallback_storage[key] = self._fallback_storage.get(key, 0) + 1
+            return self._fallback_storage[key]
+
+    @handle_redis_exception
+    def incrby(self, key: str, increment: int) -> int:
+        if not self._redis_down:
+            return self._redis_service.incrby(key, increment)
+        else:
+            self._fallback_storage[key] = self._fallback_storage.get(key, 0) + increment
+            return self._fallback_storage[key]
+
+    @handle_redis_exception
+    def incrbyfloat(self, key: str, increment: float) -> float:
+        if not self._redis_down:
+            return self._redis_service.incrbyfloat(key, increment)
+        else:
+            self._fallback_storage[key] = self._fallback_storage.get(key, 0.0) + increment
+            return self._fallback_storage[key]
+
+    @handle_redis_exception
+    def has(self, key: str) -> bool:
+        if not self._redis_down:
+            return bool(self._redis_service.exists(key))
+        else:
+            return key in self._fallback_storage
 
 
 class CacheService(GatewayService, Cache):
@@ -1098,7 +1238,7 @@ class KafkaProducerService(GatewayService):
                     self.get_service_config("REQUEST_TOPIC"),
                     {
                         "user_id": current_user.get_id(),
-                        "client_id": current_token.client.client_id
+                        "client_id": current_token.client_id
                         if current_token and hasattr(current_token, "client")
                         else "",
                         "endpoint": request.endpoint,

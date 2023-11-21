@@ -140,6 +140,13 @@ def mock_redis_service(app, monkeypatch):
 
 
 @pytest.fixture
+def mock_storage_service(app, monkeypatch):
+    mock_storage = MagicMock()
+    monkeypatch.setattr(app, "storage_service", mock_storage)
+    return mock_storage
+
+
+@pytest.fixture
 def mock_csrf_extension(app, monkeypatch):
     mock_csrf = MagicMock()
     monkeypatch.setitem(app.extensions, "csrf", mock_csrf)

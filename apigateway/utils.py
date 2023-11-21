@@ -28,9 +28,9 @@ def send_email(
     mail_server: str = "localhost",
 ):
     # Do not send emails if in debug mode
-    if current_app.config.get("DEBUG", False):
+    if current_app.config.get("TESTING", False):
         current_app.logger.warning(
-            "Email was NOT sent to '{}' with verification URL '{}' due to that debugging is enabled".format(
+            "Email was NOT sent to '{}' with verification URL '{}' due to testing".format(
                 recipient, verification_url
             )
         )
@@ -64,8 +64,8 @@ def verify_recaptcha(request: Request, endpoint: str = None):
     """
 
     # Skip reCAPTCHA verification if in debug mode
-    if current_app.config.get("DEBUG", False):
-        current_app.logger.warning("reCAPTCHA was NOT verified because debugging is enabled")
+    if current_app.config.get("TESTING", False):
+        current_app.logger.warning("reCAPTCHA is NOT verified during testing")
         return True
 
     endpoint = endpoint or current_app.config["GOOGLE_RECAPTCHA_ENDPOINT"]

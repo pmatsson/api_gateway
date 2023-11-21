@@ -24,6 +24,7 @@ from apigateway.extensions import (
     proxy_service,
     redis_service,
     security_service,
+    storage_service,
 )
 from apigateway.models import OAuth2Client, OAuth2Token, User
 from apigateway.views import (
@@ -67,13 +68,14 @@ def register_extensions(app: Flask):
 
     login_manager.init_app(app)
 
+    redis_service.init_app(app)
     security_service.init_app(app)
     auth_service.init_app(app)
     proxy_service.init_app(app)
-    redis_service.init_app(app)
     limiter_service.init_app(app)
     cache_service.init_app(app)
     kakfa_producer_service.init_app(app)
+    storage_service.init_app(app, redis_service)
 
     csrf.init_app(app)
 

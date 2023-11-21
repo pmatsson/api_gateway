@@ -102,6 +102,7 @@ class TestProxyService:
         mock_csrf_extension,
         mock_add_url_rule,
         mock_proxy_view,
+        mock_storage_service,
     ):
         app.config["PROXY_SERVICE_WEBSERVICES"] = {
             "http://test.com": "/test",
@@ -126,7 +127,7 @@ class TestProxyService:
             call("http://test.com/resources", mock_response),
             call("http://test2.com/resources", mock_response),
         ]
-        mock_cache_service.set.assert_has_calls(calls, any_order=True)
+        mock_storage_service.set.assert_has_calls(calls, any_order=True)
 
         calls = [
             call("/test/example", "/test", "http://test.com"),
@@ -161,6 +162,7 @@ class TestProxyService:
         mock_csrf_extension,
         mock_add_url_rule,
         mock_proxy_view,
+        mock_storage_service,
     ):
         app.config["PROXY_SERVICE_WEBSERVICES"] = {"http://test.com": "/test"}
 
@@ -192,6 +194,7 @@ class TestProxyService:
         mock_csrf_extension,
         mock_add_url_rule,
         mock_proxy_view,
+        mock_storage_service,
     ):
         app.config["PROXY_SERVICE_WEBSERVICES"] = {"http://test.com": "/test"}
 
