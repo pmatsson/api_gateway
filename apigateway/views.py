@@ -22,6 +22,7 @@ from apigateway.schemas import (
     bootstrap_get_response_schema,
     change_email_request_schema,
     change_password_request_schema,
+    clear_cache_request_schema,
     reset_password_request_schema,
     user_auth_post_request_schema,
     user_register_post_request_schema,
@@ -33,7 +34,7 @@ from apigateway.utils import (
 )
 
 
-class Bootstrap(Resource):
+class BootstrapView(Resource):
     def get(self):
         params = bootstrap_get_request_schema.load(request.json)
 
@@ -439,3 +440,14 @@ class ChangeEmailView(Resource):
             current_user.email,
             EmailChangedNotification,
         )
+
+
+class ChacheManagementView(Resource):
+    @property
+    def method_decorators(self):
+        return [current_app.auth_service.require_oauth("adsws:internal")]
+
+    def delete(self):
+        params = clear_cache_request_schema.load(request.json)
+        current_app.cache_service.clear_cache(params.key, params.parameters)
+        return {"success": "success"}, 200

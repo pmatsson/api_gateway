@@ -137,3 +137,12 @@ class ResetPasswordRequestSchema:
 
 
 reset_password_request_schema = marshmallow_dataclass.class_schema(ResetPasswordRequestSchema)()
+
+
+@dataclass
+class ClearCacheRequestSchema:
+    key: str = field()
+    parameters: dict = None
+
+
+clear_cache_request_schema = marshmallow_dataclass.class_schema(ClearCacheRequestSchema)()

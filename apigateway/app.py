@@ -28,7 +28,8 @@ from apigateway.extensions import (
 )
 from apigateway.models import OAuth2Client, OAuth2Token, User
 from apigateway.views import (
-    Bootstrap,
+    BootstrapView,
+    ChacheManagementView,
     ChangeEmailView,
     ChangePasswordView,
     CSRFView,
@@ -114,7 +115,7 @@ def register_hooks(app: Flask):
 
 def register_views(flask_api: Api):
     """Registers the views for the Flask application."""
-    flask_api.add_resource(Bootstrap, "/bootstrap")
+    flask_api.add_resource(BootstrapView, "/bootstrap")
     flask_api.add_resource(CSRFView, "/csrf")
     flask_api.add_resource(StatusView, "/status")
     flask_api.add_resource(OAuthProtectedView, "/protected")
@@ -126,6 +127,7 @@ def register_views(flask_api: Api):
         ChangeEmailView, "/user/change-email", "/user/change-email/<string:token>"
     )
     flask_api.add_resource(ResetPasswordView, "/user/reset-password/<string:token_or_email>")
+    flask_api.add_resource(ChacheManagementView, "/cache")
 
 
 def create_app(**config):

@@ -413,7 +413,7 @@ class ProxyService(GatewayService):
                 cache = properties["cache"]
                 proxy_view = self._app.cache_service.cached(
                     timeout=cache.get("timeout", 60000),
-                    query_parameters=cache.get("query_parameters", True),
+                    include_query_parameters=cache.get("query_parameters", True),
                     excluded_parameters=cache.get("excluded_parameters", []),
                 )(proxy_view)
 
@@ -889,81 +889,102 @@ class CacheService(GatewayService, Cache):
 
         Cache.init_app(self, app)
 
-    def cached(
-        self,
-        timeout: Optional[int] = None,
-        key_prefix: str = "view/%s",
-        unless: Optional[Callable] = None,
-        forced_update: Optional[Callable] = None,
-        response_filter: Optional[Callable] = None,
-        hash_method: Callable = hashlib.md5,
-        query_parameters: Optional[bool] = True,
-        excluded_parameters: Optional[list] = [],
-    ) -> Callable:
-        """Caches the response from an API request with the given parameters.
+    def clear_cache(self, request_path: str, parameters: dict) -> bool:
+        """Clears the cache for the specified request path and parameters.
 
         Args:
-            timeout (Optional[int], optional): The time in seconds for which the response should be cached.
-            key_prefix (str, optional): The prefix to use for the cache key.
-            unless (Optional[Callable], optional): A function that determines whether the response should be cached.
-            forced_update (Optional[Callable], optional): A function that determines whether the cache should be updated.
-            response_filter (Optional[Callable], optional): A function that filters the response before caching.
-            hash_method (Callable, optional): The hash function to use for generating the cache key.
-            query_parameters (Optional[bool], optional): Whether to include query parameters in the cache key.
-            excluded_parameters (Optional[list], optional): A list of query parameters to exclude from the cache key.
+            request_path (str): The request path.
+            parameters (dict): The request parameters used to construct the cache key.
 
         Returns:
-            Callable: The cache view decorator.
+            bool: True if the cache is cleared successfully, False otherwise.
+        """
+        if request_path == "*":
+            return self.clear()
+
+        params_tuple = list(parameters.items()) if parameters else []
+        key = self._make_cache_key(request_path, params_tuple)
+        return self.delete(key)
+
+    def cached(
+        self,
+        timeout: int = None,
+        unless: int = None,
+        forced_update: int = None,
+        response_filter: int = None,
+        include_query_parameters: bool = True,
+        excluded_parameters: list = [],
+    ) -> Callable:
+        """
+        Decorator that caches the response of a function/method.
+
+        Args:
+            timeout (int, optional): The cache timeout in seconds. Defaults to None.
+            unless (int, optional): The cache will not be used if the function/method returns a value equal to this parameter. Defaults to None.
+            forced_update (int, optional): The cache will be forcibly updated if the function/method returns a value equal to this parameter. Defaults to None.
+            response_filter (int, optional): The cache will be filtered using this parameter. Defaults to None.
+            include_query_parameters (bool, optional): Determines whether to include query parameters in the cache key. Defaults to True.
+            excluded_parameters (list, optional): List of parameters to exclude from the cache key. Defaults to [].
+
+        Returns:
+            Callable: The decorated function/method.
         """
         return Cache.cached(
             self,
             timeout=timeout,
-            key_prefix=key_prefix,
             unless=unless,
             forced_update=forced_update,
             response_filter=response_filter,
-            hash_method=hash_method,
-            make_cache_key=lambda *args, **kwargs: self._make_cache_key(
-                query_parameters, excluded_parameters, hash_method, args, kwargs
+            make_cache_key=lambda *args, **kwargs: self._make_cache_key_from_request(
+                include_query_parameters, excluded_parameters
             ),
         )
 
-    def _make_cache_key(
-        self,
-        query_parameters: bool,
-        excluded_parameters: list,
-        hash_method: Callable,
-        *args,
-        **kwargs,
+    def _make_cache_key_from_request(
+        self, include_query_parameters: bool, excluded_parameters: list
     ) -> str:
-        """Generates a cache key for the given parameters.
+        """
+        Generate a cache key based on the request.
 
         Args:
-            query_parameters (bool): Whether to include query parameters in the cache key.
-            excluded_parameters (list): A list of query parameters to exclude from the cache key.
-            hash_method (Callable): The hash function to use for generating the cache key.
-            *args: Positional arguments to include in the cache key.
-            **kwargs: Keyword arguments to include in the cache key.
+            include_query_parameters (bool): Flag indicating whether to include query parameters in the cache key.
+            excluded_parameters (list): List of query parameters to exclude from the cache key.
 
         Returns:
-            str: The cache key.
+            str: The generated cache key.
         """
-        cache_key = request.path
-
-        if query_parameters:
-            args_as_sorted_tuple = tuple(
-                sorted(
-                    (k, v)
-                    for (k, v) in request.args.items(multi=True)
-                    if k not in excluded_parameters
-                )
+        request_params = []
+        if include_query_parameters:
+            request_params = sorted(
+                (k, v) for (k, v) in request.args.items(multi=True) if k not in excluded_parameters
             )
 
-            args_as_bytes = str(args_as_sorted_tuple).encode()
+        return self._make_cache_key(request.path, request_params)
+
+    def _make_cache_key(
+        self,
+        request_path: str,
+        request_params: list[tuple[str, str]] = None,
+        hash_method: Callable = hashlib.md5,
+    ) -> str:
+        """Generate a cache key for the given request.
+
+        Args:
+            request_path (str): The path of the request.
+            request_params (list[tuple[str, str]], optional): The parameters of the request. Defaults to None.
+            hash_method (Callable, optional): The hash method to use. Defaults to hashlib.md5.
+
+        Returns:
+            str: The generated cache key.
+        """
+        cache_key = "view/%s" % request_path
+
+        if request_params:
+            args_as_bytes = str(request_params).encode()
             cache_arg_hash = hash_method(args_as_bytes)
             cache_arg_hash = str(cache_arg_hash.hexdigest())
 
-            cache_key = cache_key + cache_arg_hash
+            cache_key += "/{}".format(cache_arg_hash)
 
         return cache_key
 

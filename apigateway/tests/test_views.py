@@ -12,7 +12,7 @@ from apigateway.email_templates import EmailChangedNotification, VerificationEma
 from apigateway.models import AnonymousUser, EmailChangeRequest, User
 from apigateway.schemas import bootstrap_get_response_schema
 from apigateway.views import (
-    Bootstrap,
+    BootstrapView,
     ChangeEmailView,
     ChangePasswordView,
     CSRFView,
@@ -27,7 +27,7 @@ from apigateway.views import (
 class TestBootstrapView:
     @pytest.fixture
     def bootstrap(self):
-        return Bootstrap()
+        return BootstrapView()
 
     def test_get_authenticated_user(self, app, bootstrap, mock_regular_user):
         with app.test_request_context(json={}):
