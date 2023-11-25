@@ -6,7 +6,8 @@ import os
 import re
 import time
 from datetime import datetime
-from typing import Callable, Optional, Tuple, TypedDict, Union
+from functools import wraps
+from typing import Callable, Tuple
 from urllib.parse import urljoin
 
 import requests
@@ -33,9 +34,10 @@ from sqlalchemy import func
 from werkzeug.datastructures import Headers
 from werkzeug.security import gen_salt
 
+from apigateway import extensions
 from apigateway.exceptions import NoClientError, NotFoundError, ValidationError
 from apigateway.models import AnonymousUser, OAuth2Client, OAuth2Token, Role, User
-from apigateway.views import ProxyView
+from apigateway.utils import ProxyView
 
 
 class GatewayService:
@@ -55,7 +57,6 @@ class GatewayService:
         if app is None:
             return
 
-        self._app = app
         self._logger = logging.getLogger(f"{app.name}.{self._name}")
 
         if not hasattr(app, "extensions"):
@@ -64,6 +65,8 @@ class GatewayService:
         app.extensions[self._name.lower()] = self
 
         app.__setattr__(self._name.lower(), self)
+
+        self._app = app
 
     def get_service_config(self, key: str, default: any = None) -> any:
         """Get the value of a configuration setting for this service.
@@ -191,10 +194,10 @@ class AuthService(GatewayService):
             )
 
             client.gen_salt()
-            self._app.db.session.add(client)
+            extensions.db.session.add(client)
 
             token = self._create_user_token(client, expires=expires)
-            self._app.db.session.add(token)
+            extensions.db.session.add(token)
 
             self._logger.info("Created BB client for {email}".format(email=current_user.email))
         else:
@@ -206,10 +209,10 @@ class AuthService(GatewayService):
             if token is None:
                 token = self._create_user_token(client, expires=expires)
 
-                self._app.db.session.add(token)
+                extensions.db.session.add(token)
                 self._logger.info("Created BB client for {email}".format(email=current_user.email))
 
-        self._app.db.session.commit()
+        extensions.db.session.commit()
 
         return client, token
 
@@ -232,9 +235,9 @@ class AuthService(GatewayService):
         client.gen_salt()
         token = self._create_temporary_token(client)
 
-        self._app.db.session.add(client)
-        self._app.db.session.add(token)
-        self._app.db.session.commit()
+        extensions.db.session.add(client)
+        extensions.db.session.add(token)
+        extensions.db.session.commit()
 
         return client, token
 
@@ -309,7 +312,7 @@ class AuthService(GatewayService):
             return
 
         used_ratelimit = (
-            self._app.db.session.query(func.sum(OAuth2Client.ratelimit_multiplier).label("sum"))
+            extensions.db.session.query(func.sum(OAuth2Client.ratelimit_multiplier).label("sum"))
             .filter(OAuth2Client.user_id == current_user.get_id())
             .first()[0]
             or 0.0
@@ -406,12 +409,12 @@ class ProxyService(GatewayService):
             proxy_view = ProxyView.as_view(rule_name, deploy_path, base_url)
 
             if csrf_exempt:
-                self._app.extensions["csrf"].exempt(proxy_view)
+                extensions.csrf.exempt(proxy_view)
 
             # If configured by the webservice, decorate view with the cache service
             if properties["cache"] is not None:
                 cache = properties["cache"]
-                proxy_view = self._app.cache_service.cached(
+                proxy_view = extensions.cache_service.cached(
                     timeout=cache.get("timeout", 60000),
                     include_query_parameters=cache.get("query_parameters", True),
                     excluded_parameters=cache.get("excluded_parameters", []),
@@ -420,16 +423,18 @@ class ProxyService(GatewayService):
             # Decorate view with the rate limiter service
             counts = properties["rate_limit"][0]
             per_second = properties["rate_limit"][1]
-            proxy_view = self._app.limiter_service.shared_limit(
+            proxy_view = extensions.limiter_service.shared_limit(
                 counts=counts,
                 per_second=per_second,
             )(proxy_view)
 
-            self._app.limiter_service.group_endpoint(local_path, counts, per_second)
+            extensions.limiter_service.group_endpoint(local_path, counts, per_second)
 
             # Decorate view with the auth service, unless explicitly disabled
             if properties["authorization"]:
-                proxy_view = self._app.auth_service.require_oauth(properties["scopes"])(proxy_view)
+                proxy_view = extensions.auth_service.require_oauth(properties["scopes"])(
+                    proxy_view
+                )
 
             # Register the view with Flask
             self._app.add_url_rule(
@@ -439,7 +444,7 @@ class ProxyService(GatewayService):
                 methods=properties["methods"],
             )
 
-    def _fetch_resource_document(self, base_url: str) -> TypedDict:
+    def _fetch_resource_document(self, base_url: str) -> dict:
         """
         Fetches the resource document for a given base URL.
 
@@ -457,12 +462,12 @@ class ProxyService(GatewayService):
             response = requests.get(resource_url, timeout=timeout)
             response.raise_for_status()
 
-            self._app.storage_service.set(resource_url, response)
+            extensions.storage_service.set(resource_url, response.json())
             return response.json()
         except requests.exceptions.RequestException as ex:
-            if self._app.storage_service.has(resource_url):
+            if extensions.storage_service.has(resource_url):
                 self._logger.debug("Using cached resource document for %s", resource_url)
-                return self._app.storage_service.get(resource_url).json()
+                return extensions.storage_service.get(resource_url)
             else:
                 raise ex
 
@@ -483,7 +488,9 @@ class LimiterService(GatewayService, Limiter):
             name (str, optional): The name of the service. Defaults to "LIMITER_SERVICE".
         """
         GatewayService.__init__(self, name)
-        Limiter.__init__(self, key_func=self._key_func, in_memory_fallback_enabled=True)
+        Limiter.__init__(
+            self, key_func=self._key_func, in_memory_fallback_enabled=True, auto_check=False
+        )
         self._symbolic_ratelimits = {}
 
     def init_app(self, app: Flask):
@@ -528,79 +535,134 @@ class LimiterService(GatewayService, Limiter):
 
             key: str = f"{self._name}//{request.endpoint}/time"
 
-            existing_value: float = float(self._app.storage_service.get(key) or -1)
+            existing_value: float = float(extensions.storage_service.get(key) or -1)
             if existing_value < 0:
-                self._app.storage_service.set(key, processing_time)
+                extensions.storage_service.set(key, processing_time)
             else:
                 mean_value = (existing_value + processing_time) / 2
-                self._app.storage_service.incrbyfloat(key, mean_value - existing_value)
+                extensions.storage_service.incrbyfloat(key, mean_value - existing_value)
 
             return response
 
         def _token_authenticated(sender, token=None, **kwargs):
             client = OAuth2Client.query.filter_by(client_id=token.client_id).first()
             level = getattr(client, "ratelimit", 1.0) if client else 0.0
-
-            request.headers.add_header("X-Adsws-Ratelimit-Level", str(level))
+            headers = Headers(request.headers.items())
+            headers.add_header("X-Adsws-Ratelimit-Level", str(level))
+            request.headers = headers
 
         token_authenticated.connect(_token_authenticated, weak=False)
 
+    def limit(
+        self,
+        limit_value: str = None,
+        counts: int = None,
+        per_second: int = None,
+        scope: str = None,
+        key_func: Callable[[], str] = None,
+        error_message: str = None,
+        exempt_when: Callable[[], bool] = None,
+        override_defaults: bool = True,
+        deduct_when: Callable[[Response], bool] = None,
+        cost: int | Callable[[], int] = None,
+    ):
+        return self._limit_and_check(
+            limit_value,
+            counts,
+            per_second,
+            scope,
+            key_func,
+            error_message,
+            exempt_when,
+            override_defaults,
+            deduct_when,
+            cost,
+            shared=False,
+        )
+
     def shared_limit(
         self,
-        limit_value: Optional[str] = None,
-        counts: Optional[int] = None,
-        per_second: Optional[int] = None,
-        scope: Optional[str] = None,
-        key_func: Optional[Callable[[], str]] = None,
-        error_message: Optional[str] = None,
-        exempt_when: Optional[Callable[[], bool]] = None,
+        limit_value: str = None,
+        counts: int = None,
+        per_second: int = None,
+        scope: str = None,
+        key_func: Callable[[], str] = None,
+        error_message: str = None,
+        exempt_when: Callable[[], bool] = None,
         override_defaults: bool = True,
-        deduct_when: Optional[Callable[[Response], bool]] = None,
-        cost: Optional[Union[int, Callable[[], int]]] = None,
-    ) -> LimitDecorator:
-        """Decorator to be applied to multiple routes sharing the same rate limit.
+        deduct_when: Callable[[Response], bool] = None,
+        cost: int | Callable[[], int] = None,
+    ):
+        return self._limit_and_check(
+            limit_value,
+            counts,
+            per_second,
+            scope,
+            key_func,
+            error_message,
+            exempt_when,
+            override_defaults,
+            deduct_when,
+            cost,
+            shared=True,
+        )
 
-        Args:
-            limit_value (Optional[str], optional): The limit value for the rate limit. Either this or
-                counts and per_second must be provided. Defaults to None.
-            counts (Optional[int], optional): The number of counts for the rate limit. Defaults to None.
-            per_second (Optional[int], optional): The number of counts per second for the rate limit.
-                Defaults to None.
-            scope (Optional[str], optional): The scope of the rate limit. Defaults to None.
-            key_func (Optional[Callable[[], str]], optional): The key function for the rate limit.
-                Defaults to None.
-            error_message (Optional[str], optional): The error message for the rate limit. Defaults to None.
-            exempt_when (Optional[Callable[[], bool]], optional): The exempt when function for the rate
-                limit. Defaults to None.
-            override_defaults (bool, optional): Whether to override the default values for the rate limit.
-                Defaults to True.
-            deduct_when (Optional[Callable[[Response], bool]], optional): The deduct when function for
-                the rate limit. Defaults to None.
-            cost (Optional[Union[int, Callable[[], int]]], optional): The cost function for the rate limit.
-                Defaults to None.
+    def group_endpoint(self, endpoint: str, counts: int, per_second: int):
+        for group, values in self._ratelimit_groups.items():
+            if any(re.match(pattern, endpoint) for pattern in values.get("patterns", [])):
+                if group not in self._symbolic_ratelimits.keys():
+                    self._symbolic_ratelimits[group] = {
+                        "name": group,
+                        "counts": values.get("counts", counts),
+                        "per_second": values.get("per_second", per_second),
+                    }
 
-        Raises:
-            ValueError: If neither limit_value nor counts and per_second are provided.
+                self._symbolic_ratelimits[endpoint] = self._symbolic_ratelimits[group]
+                break
 
-        Returns:
-            LimitDecorator: The rate limit decorator.
-        """
+    def _limit_and_check(
+        self,
+        limit_value: str = None,
+        counts: int = None,
+        per_second: int = None,
+        scope: str = None,
+        key_func: Callable[[], str] = None,
+        error_message: str = None,
+        exempt_when: Callable[[], bool] = None,
+        override_defaults: bool = True,
+        deduct_when: Callable[[Response], bool] = None,
+        cost: int | Callable[[], int] = None,
+        shared: bool = False,
+    ):
         if limit_value is None and (counts is None or per_second is None):
             raise ValueError("Either limit_value or counts and per_second must be provided")
 
-        return Limiter.shared_limit(
-            self,
-            limit_value if limit_value else lambda: self.calculate_limit_value(counts, per_second),
-            scope if scope else self._scope_func,
-            key_func=key_func if key_func else self._key_func,
-            error_message=error_message,
-            exempt_when=exempt_when,
-            override_defaults=override_defaults,
-            deduct_when=deduct_when,
-            cost=cost if cost else self._cost_func,
-        )
+        def inner(func):
+            LimitDecorator(
+                self,
+                limit_value=limit_value
+                if limit_value
+                else lambda: self._calculate_limit_value(counts, per_second),
+                scope=scope if scope else self._scope_func,
+                shared=shared,
+                key_func=key_func if key_func else self._key_func,
+                error_message=error_message,
+                exempt_when=exempt_when,
+                override_defaults=override_defaults,
+                deduct_when=deduct_when,
+                cost=cost if cost else self._cost_func,
+            )(func)
 
-    def calculate_limit_value(self, counts: int, per_second: int) -> str:
+            @wraps(func)
+            def check(*args, **kwargs):
+                self.check()
+                return func(*args, **kwargs)
+
+            return check
+
+        return inner
+
+    def _calculate_limit_value(self, counts: int, per_second: int) -> str:
         """Calculates the limit string for the specified counts and per second values.
 
         This function is called on each request which is why it is possible to have individual
@@ -632,19 +694,6 @@ class LimiterService(GatewayService, Limiter):
 
         return "{0}/{1} second".format(int(counts * multiplier), per_second)
 
-    def group_endpoint(self, endpoint: str, counts: int, per_second: int):
-        for group, values in self._ratelimit_groups.items():
-            if any(re.match(pattern, endpoint) for pattern in values.get("patterns", [])):
-                if group not in self._symbolic_ratelimits.keys():
-                    self._symbolic_ratelimits[group] = {
-                        "name": group,
-                        "counts": values.get("counts", counts),
-                        "per_second": values.get("per_second", per_second),
-                    }
-
-                self._symbolic_ratelimits[endpoint] = self._symbolic_ratelimits[group]
-                break
-
     def _cost_func(self) -> int:
         """Calculates the cost for the rate limit.
 
@@ -653,8 +702,10 @@ class LimiterService(GatewayService, Limiter):
         Returns:
             int: The cost for the rate limit.
         """
+        # st: dict = self.storage.storage
+        # self.limiter.storage.storage.
         processing_time_seconds = float(
-            self._app.storage_service.get(f"{self._name}//{request.endpoint}/time") or 0
+            extensions.storage_service.get(f"{self._name}//{request.endpoint}/time") or 0
         )
 
         return 1 if processing_time_seconds <= 1 else int(2 ** (processing_time_seconds - 1))
@@ -683,9 +734,9 @@ class LimiterService(GatewayService, Limiter):
         Returns:
             str: The scope for the rate limit.
         """
-        if hasattr(request, "oauth") and request.oauth.client:
+        if current_token:
             return "{email}:{client}".format(
-                email=request.oauth.user.email, client=request.oauth.client.client_id
+                email=current_token.user.email, client=current_token.client_id
             )
 
         elif current_user.is_authenticated and not current_user.is_anonymous_bootstrap_user:
@@ -1098,7 +1149,6 @@ class SecurityService(GatewayService, Security):
             raise ValueError(", ".join(pbad))
 
         user.password = password
-        user = self._app.db.session.merge(user)
         self.datastore.put(user)
         self.datastore.commit()
 
@@ -1134,7 +1184,6 @@ class SecurityService(GatewayService, Security):
         """
         email = self._mail_util.validate(email)
         user.email = email
-        user = self._app.db.session.merge(user)
         self.datastore.put(user)
         self.datastore.commit()
 

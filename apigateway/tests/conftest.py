@@ -98,58 +98,58 @@ def mock_requests(monkeypatch):
 
 
 @pytest.fixture
-def mock_cache_service(monkeypatch, app):
+def mock_cache_service(monkeypatch):
     mock_cache = MagicMock()
-    monkeypatch.setattr(app, "cache_service", mock_cache)
+    monkeypatch.setattr("apigateway.extensions.cache_service", mock_cache)
     return mock_cache
 
 
 @pytest.fixture
-def mock_limiter_service(app, monkeypatch):
+def mock_limiter_service(monkeypatch):
     mock_limiter = MagicMock()
-    monkeypatch.setattr(app, "limiter_service", mock_limiter)
+    monkeypatch.setattr("apigateway.extensions.limiter_service", mock_limiter)
     return mock_limiter
 
 
 @pytest.fixture
-def mock_auth_service(app, monkeypatch):
+def mock_auth_service(monkeypatch):
     mock_auth = MagicMock()
-    monkeypatch.setattr(app, "auth_service", mock_auth)
+    monkeypatch.setattr("apigateway.extensions.auth_service", mock_auth)
     return mock_auth
 
 
 @pytest.fixture
-def mock_proxy_service(app, monkeypatch):
+def mock_proxy_service(monkeypatch):
     mock_proxy = MagicMock()
-    monkeypatch.setattr(app, "proxy_service", mock_proxy)
+    monkeypatch.setattr("apigateway.extensions.proxy_service", mock_proxy)
     return mock_proxy
 
 
 @pytest.fixture
-def mock_security_service(app, monkeypatch):
-    mock_proxy = MagicMock()
-    monkeypatch.setattr(app, "security_service", mock_proxy)
-    return mock_proxy
+def mock_security_service(monkeypatch):
+    mock_security = MagicMock()
+    monkeypatch.setattr("apigateway.extensions.security_service", mock_security)
+    return mock_security
 
 
 @pytest.fixture
-def mock_redis_service(app, monkeypatch):
+def mock_redis_service(monkeypatch):
     mock_redis = MagicMock()
-    monkeypatch.setattr(app, "redis_service", mock_redis)
+    monkeypatch.setattr("apigateway.extensions.redis_service", mock_redis)
     return mock_redis
 
 
 @pytest.fixture
-def mock_storage_service(app, monkeypatch):
+def mock_storage_service(monkeypatch):
     mock_storage = MagicMock()
-    monkeypatch.setattr(app, "storage_service", mock_storage)
+    monkeypatch.setattr("apigateway.extensions.storage_service", mock_storage)
     return mock_storage
 
 
 @pytest.fixture
-def mock_csrf_extension(app, monkeypatch):
+def mock_csrf_extension(monkeypatch):
     mock_csrf = MagicMock()
-    monkeypatch.setitem(app.extensions, "csrf", mock_csrf)
+    monkeypatch.setattr("apigateway.extensions.csrf", mock_csrf)
     return mock_csrf
 
 

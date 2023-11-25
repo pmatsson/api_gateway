@@ -8,33 +8,24 @@ from flask_login import current_user, login_user
 from marshmallow import ValidationError
 from werkzeug.exceptions import Unauthorized
 
+from apigateway import views
 from apigateway.email_templates import EmailChangedNotification, VerificationEmail
 from apigateway.models import AnonymousUser, EmailChangeRequest, User
-from apigateway.schemas import bootstrap_get_response_schema
-from apigateway.views import (
-    BootstrapView,
-    ChangeEmailView,
-    ChangePasswordView,
-    CSRFView,
-    LogoutView,
-    OAuthProtectedView,
-    ProxyView,
-    UserAuthView,
-    UserManagementView,
-)
+from apigateway.schemas import bootstrap_response
+from apigateway.utils import ProxyView
 
 
 class TestBootstrapView:
     @pytest.fixture
     def bootstrap(self):
-        return BootstrapView()
+        return views.BootstrapView()
 
     def test_get_authenticated_user(self, app, bootstrap, mock_regular_user):
         with app.test_request_context(json={}):
             response, status_code = bootstrap.get()
 
             assert status_code == 200
-            assert not bootstrap_get_response_schema.validate(response)
+            assert not bootstrap_response.validate(response)
 
     def test_get_authenticated_user_with_params(self, app, bootstrap, mock_regular_user):
         req_json = {
@@ -44,10 +35,10 @@ class TestBootstrapView:
         }
         with app.test_request_context(json=req_json):
             response, status_code = bootstrap.get()
-            parsed_response = bootstrap_get_response_schema.load(response)
+            parsed_response = bootstrap_response.load(response)
 
             assert status_code == 200
-            assert not bootstrap_get_response_schema.validate(response)
+            assert not bootstrap_response.validate(response)
             assert parsed_response["scope"] == req_json["scope"]
 
     def test_get_anonymous_user_with_params(self, app, bootstrap, mock_anon_user):
@@ -60,7 +51,7 @@ class TestBootstrapView:
 class TestUserAuthView:
     @pytest.fixture
     def user_auth_view(self):
-        return UserAuthView()
+        return views.UserAuthView()
 
     @pytest.fixture
     def authenticated_user(self, app):
@@ -181,7 +172,7 @@ class TestProxyView:
 class TestCSRFView:
     @pytest.fixture
     def csrf_view(self):
-        return CSRFView()
+        return views.CSRFView()
 
     def test_get_csrf_token(self, app, csrf_view):
         with app.test_request_context():
@@ -193,7 +184,7 @@ class TestCSRFView:
 class TestOAuthProtectedView:
     @pytest.fixture
     def oauth_protected_view(self):
-        return OAuthProtectedView()
+        return views.OAuthProtectedView()
 
     def test_get(self, app, oauth_protected_view, mock_regular_user, mock_current_token):
         with app.test_request_context():
@@ -206,7 +197,7 @@ class TestOAuthProtectedView:
 class TestUserManagementView:
     @pytest.fixture
     def user_management_view(self):
-        return UserManagementView()
+        return views.UserManagementView()
 
     @pytest.fixture
     def new_user_data(self):
@@ -272,7 +263,7 @@ class TestUserManagementView:
 class TestLogoutView:
     @pytest.fixture
     def logout_view(self):
-        return LogoutView()
+        return views.LogoutView()
 
     @pytest.fixture
     def authenticated_user(self, app):
@@ -303,7 +294,7 @@ class TestLogoutView:
 class TestChangePasswordView:
     @pytest.fixture
     def change_password_view(self):
-        return ChangePasswordView()
+        return views.ChangePasswordView()
 
     @pytest.fixture
     def authenticated_user(self, app):
@@ -383,7 +374,7 @@ class TestChangePasswordView:
 class TestChangeEmailView:
     @pytest.fixture
     def change_email_view(self):
-        return ChangeEmailView()
+        return views.ChangeEmailView()
 
     @pytest.fixture
     def authenticated_user(self, app):
@@ -457,7 +448,7 @@ class TestChangeEmailView:
 class TestVerifyEmailView:
     @pytest.fixture
     def verify_email_view(self):
-        return ChangeEmailView()
+        return views.VerifyEmailView()
 
     @pytest.fixture
     def authenticated_user(self, app):

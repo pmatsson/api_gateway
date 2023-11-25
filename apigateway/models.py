@@ -26,6 +26,10 @@ roles_users = sa.Table(
 class User(base_model, UserMixin):
     __tablename__ = "user"
 
+    # 'fs_uniquifier' serves as the main identifier for a user
+    # The 'id' column is maintained for data persistence as 'fs_uniquifier' can be altered.
+    # the get_id() method of the UserMixin class returns the 'fs_uniquifier' value
+
     id = sa.Column(sa.Integer, primary_key=True)
     email = sa.Column(sa.Text, unique=True)
     _password = sa.Column(sa.String(255), name="password")

@@ -69,17 +69,10 @@ class BootstrapGetResponseSchema(SQLAlchemySchema):
     )
 
 
-bootstrap_get_request_schema = marshmallow_dataclass.class_schema(BootstrapGetRequestSchema)()
-bootstrap_get_response_schema = BootstrapGetResponseSchema()
-
-
 @dataclass
 class UserAuthPostRequestSchema:
     email: str = field(metadata={"validate": marshmallow.validate.Email()})
     password: str = field()
-
-
-user_auth_post_request_schema = marshmallow_dataclass.class_schema(UserAuthPostRequestSchema)()
 
 
 @dataclass
@@ -96,11 +89,6 @@ class UserRegisterPostRequestSchema:
             raise ValidationError("Passwords do not match", field_name="password2")
 
 
-user_register_post_request_schema = marshmallow_dataclass.class_schema(
-    UserRegisterPostRequestSchema
-)()
-
-
 @dataclass
 class ChangePasswordRequestSchema:
     old_password: str = field()
@@ -113,16 +101,10 @@ class ChangePasswordRequestSchema:
             raise ValidationError("Passwords do not match", field_name="new_password2")
 
 
-change_password_request_schema = marshmallow_dataclass.class_schema(ChangePasswordRequestSchema)()
-
-
 @dataclass
 class ChangeEmailRequestSchema:
     email: str = field(metadata={"validate": marshmallow.validate.Email()})
     password: str = field(metadata={"validate": PasswordValidator()})
-
-
-change_email_request_schema = marshmallow_dataclass.class_schema(ChangeEmailRequestSchema)()
 
 
 @dataclass
@@ -136,13 +118,17 @@ class ResetPasswordRequestSchema:
             raise ValidationError("Passwords do not match", field_name="password2")
 
 
-reset_password_request_schema = marshmallow_dataclass.class_schema(ResetPasswordRequestSchema)()
-
-
 @dataclass
 class ClearCacheRequestSchema:
     key: str = field()
     parameters: dict = None
 
 
-clear_cache_request_schema = marshmallow_dataclass.class_schema(ClearCacheRequestSchema)()
+bootstrap_request = marshmallow_dataclass.class_schema(BootstrapGetRequestSchema)()
+bootstrap_response = BootstrapGetResponseSchema()
+user_auth_request = marshmallow_dataclass.class_schema(UserAuthPostRequestSchema)()
+user_register_request = marshmallow_dataclass.class_schema(UserRegisterPostRequestSchema)()
+change_password_request = marshmallow_dataclass.class_schema(ChangePasswordRequestSchema)()
+change_email_request = marshmallow_dataclass.class_schema(ChangeEmailRequestSchema)()
+reset_password_request = marshmallow_dataclass.class_schema(ResetPasswordRequestSchema)()
+clear_cache_request = marshmallow_dataclass.class_schema(ClearCacheRequestSchema)()

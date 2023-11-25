@@ -124,8 +124,8 @@ class TestProxyService:
         app.proxy_service.register_services()
 
         calls = [
-            call("http://test.com/resources", mock_response),
-            call("http://test2.com/resources", mock_response),
+            call("http://test.com/resources", mock_response.json.return_value),
+            call("http://test2.com/resources", mock_response.json.return_value),
         ]
         mock_storage_service.set.assert_has_calls(calls, any_order=True)
 
@@ -240,27 +240,60 @@ class TestLimiterService:
 
     def test_shared_limit_with_limit_value(self, app):
         # Arrange
-        limit_value = "100/minute"
+        limit_value = "5/minute"
+        decorator = app.limiter_service.shared_limit(limit_value=limit_value)
+        counter = 0
+
+        @decorator
+        def increment_counter():
+            nonlocal counter
+            counter += 1
+
+        app.add_url_rule(
+            "/test1",
+            endpoint="/test1",
+            view_func=increment_counter,
+            methods=["GET", "POST"],
+        )
 
         # Act
-        decorator = app.limiter_service.shared_limit(limit_value=limit_value)
-
+        with app.test_request_context("/test1"):
+            for _ in range(10):
+                try:
+                    increment_counter()
+                except Exception:
+                    break
         # Assert
-        assert not callable(decorator.limit_value)
-        assert decorator.limit_value == limit_value
+        assert counter == 5
 
     def test_shared_limit_with_counts_and_per_second(self, app, mock_current_token):
         # Arrange
-        counts, per_second = 100, 60
-        with app.test_request_context("/"):
-            # Act
-            decorator = app.limiter_service.shared_limit(counts=counts, per_second=per_second)
 
-            # Assert
-            assert callable(decorator.limit_value)
+        counts, per_second = 3, 60
+        decorator = app.limiter_service.shared_limit(counts=counts, per_second=per_second)
+        counter2 = 0
 
-            expected_limit_value = f"{int(counts * mock_current_token.client.ratelimit_multiplier)}/{per_second} second"
-            assert decorator.limit_value() == expected_limit_value
+        @decorator
+        def increment_counter2():
+            nonlocal counter2
+            counter2 += 1
+
+        app.add_url_rule(
+            "/test2",
+            endpoint="/test2",
+            view_func=increment_counter2,
+            methods=["GET", "POST"],
+        )
+
+        # Act
+        with app.test_request_context("/test2"):
+            for _ in range(10):
+                try:
+                    increment_counter2()
+                except Exception:
+                    break
+        # Assert
+        assert counter2 == 9  # 9 because of rate limit multiplier of 3 for current user
 
 
 class TestSecurityService:

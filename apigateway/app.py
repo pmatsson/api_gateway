@@ -8,38 +8,8 @@ from flask_restful import Api
 from flask_wtf.csrf import CSRFError
 from marshmallow import ValidationError
 
-from apigateway.exceptions import NotFoundError
-from apigateway.extensions import (
-    alembic,
-    auth_service,
-    cache_service,
-    cors,
-    csrf,
-    db,
-    kakfa_producer_service,
-    limiter_service,
-    login_manager,
-    ma,
-    oauth2_server,
-    proxy_service,
-    redis_service,
-    security_service,
-    storage_service,
-)
+from apigateway import exceptions, extensions, views
 from apigateway.models import OAuth2Client, OAuth2Token, User
-from apigateway.views import (
-    BootstrapView,
-    ChacheManagementView,
-    ChangeEmailView,
-    ChangePasswordView,
-    CSRFView,
-    LogoutView,
-    OAuthProtectedView,
-    ResetPasswordView,
-    StatusView,
-    UserAuthView,
-    UserManagementView,
-)
 
 
 def register_extensions(app: Flask):
@@ -49,11 +19,11 @@ def register_extensions(app: Flask):
         app (Flask): Application object
     """
 
-    db.init_app(app)
-    ma.init_app(app)
-    alembic.init_app(app)
+    extensions.db.init_app(app)
+    extensions.ma.init_app(app)
+    extensions.alembic.init_app(app)
 
-    cors.init_app(
+    extensions.cors.init_app(
         app,
         origins=app.config.get("CORS_DOMAINS"),
         allow_headers=app.config.get("CORS_HEADERS"),
@@ -61,24 +31,24 @@ def register_extensions(app: Flask):
         supports_credentials=True,
     )
 
-    oauth2_server.init_app(
+    extensions.oauth2_server.init_app(
         app,
-        query_client=create_query_client_func(db.session, OAuth2Client),
-        save_token=create_save_token_func(db.session, OAuth2Token),
+        query_client=create_query_client_func(extensions.db.session, OAuth2Client),
+        save_token=create_save_token_func(extensions.db.session, OAuth2Token),
     )
 
-    login_manager.init_app(app)
+    extensions.login_manager.init_app(app)
 
-    redis_service.init_app(app)
-    security_service.init_app(app)
-    auth_service.init_app(app)
-    proxy_service.init_app(app)
-    limiter_service.init_app(app)
-    cache_service.init_app(app)
-    kakfa_producer_service.init_app(app)
-    storage_service.init_app(app, redis_service)
+    extensions.redis_service.init_app(app)
+    extensions.security_service.init_app(app)
+    extensions.auth_service.init_app(app)
+    extensions.proxy_service.init_app(app)
+    extensions.limiter_service.init_app(app)
+    extensions.cache_service.init_app(app)
+    extensions.kakfa_producer_service.init_app(app)
+    extensions.storage_service.init_app(app, extensions.redis_service)
 
-    csrf.init_app(app)
+    extensions.csrf.init_app(app)
 
 
 def register_hooks(app: Flask):
@@ -92,7 +62,7 @@ def register_hooks(app: Flask):
     def make_session_permanent():
         session.permanent = True
 
-    @login_manager.user_loader
+    @extensions.login_manager.user_loader
     def load_user(user_id):
         return User.query.filter_by(fs_uniquifier=user_id).first()
 
@@ -107,7 +77,7 @@ def register_hooks(app: Flask):
         error_messages = [", ".join(messages) for messages in e.messages.values()]
         return jsonify({"error": ", ".join(error_messages)}), 400
 
-    @app.errorhandler(NotFoundError)
+    @app.errorhandler(exceptions.NotFoundError)
     def not_found_error(e):
         app.logger.info(f"Not Found Error: {e.value}")
         return jsonify({"error": e.value}), 404
@@ -115,19 +85,18 @@ def register_hooks(app: Flask):
 
 def register_views(flask_api: Api):
     """Registers the views for the Flask application."""
-    flask_api.add_resource(BootstrapView, "/bootstrap")
-    flask_api.add_resource(CSRFView, "/csrf")
-    flask_api.add_resource(StatusView, "/status")
-    flask_api.add_resource(OAuthProtectedView, "/protected")
-    flask_api.add_resource(UserAuthView, "/user/login")
-    flask_api.add_resource(LogoutView, "/user/logout")
-    flask_api.add_resource(UserManagementView, "/user")
-    flask_api.add_resource(ChangePasswordView, "/user/change-password")
-    flask_api.add_resource(
-        ChangeEmailView, "/user/change-email", "/user/change-email/<string:token>"
-    )
-    flask_api.add_resource(ResetPasswordView, "/user/reset-password/<string:token_or_email>")
-    flask_api.add_resource(ChacheManagementView, "/cache")
+    flask_api.add_resource(views.BootstrapView, "/bootstrap")
+    flask_api.add_resource(views.CSRFView, "/csrf")
+    flask_api.add_resource(views.StatusView, "/status")
+    flask_api.add_resource(views.OAuthProtectedView, "/protected")
+    flask_api.add_resource(views.UserAuthView, "/user/login")
+    flask_api.add_resource(views.LogoutView, "/user/logout")
+    flask_api.add_resource(views.UserManagementView, "/user")
+    flask_api.add_resource(views.ChangePasswordView, "/user/change-password")
+    flask_api.add_resource(views.ChangeEmailView, "/user/change-email")
+    flask_api.add_resource(views.VerifyEmailView, "/verify/<string:token>")
+    flask_api.add_resource(views.ResetPasswordView, "/user/reset-password/<string:token_or_email>")
+    flask_api.add_resource(views.ChacheManagementView, "/cache")
 
 
 def create_app(**config):
@@ -139,10 +108,10 @@ def create_app(**config):
 
     app = ADSFlask(__name__, static_folder=None, local_config=config)
     flask_api = Api(app)
-    register_views(flask_api)
     register_extensions(app)
+    register_views(flask_api)
     register_hooks(app)
 
-    proxy_service.register_services()
+    extensions.proxy_service.register_services()
 
     return app
