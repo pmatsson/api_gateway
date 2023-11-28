@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from authlib.integrations.flask_oauth2 import current_token
-from flask import current_app, request, session, url_for
+from flask import current_app, request, session
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_restful import Resource, abort
 from flask_wtf.csrf import generate_csrf
@@ -140,7 +140,7 @@ class UserManagementView(Resource):
             return {"error": error_message}, 409
 
         try:
-            extensions.security_service.create_user(
+            user: User = extensions.security_service.create_user(
                 given_name=params.given_name,
                 family_name=params.family_name,
                 email=params.email,
@@ -149,12 +149,8 @@ class UserManagementView(Resource):
                 login_count=0,
             )
 
-            send_email(
-                sender=current_app.config["MAIL_DEFAULT_SENDER"],
-                recipient=params.email,
-                template=templates.WelcomeVerificationEmail,
-                verification_url="<TBD>",
-            )
+            token = extensions.security_service.generate_email_token(user.id)
+            self._send_welcome_email(token, user.email)
 
             return {"message": "success"}, 200
         except ValueError as e:
@@ -170,6 +166,15 @@ class UserManagementView(Resource):
             session.commit()
 
         return {"message": "success"}, 200
+
+    def _send_welcome_email(self, token: str, email: str):
+        verification_url = f"{current_app.config['VERIFY_URL']}/register/{token}"
+        send_email(
+            sender=current_app.config["MAIL_DEFAULT_SENDER"],
+            recipient=email,
+            template=templates.WelcomeVerificationEmail,
+            verification_url=verification_url,
+        )
 
 
 class LogoutView(Resource):
@@ -257,11 +262,12 @@ class ResetPasswordView(Resource):
         session.commit()
 
     def _send_password_reset_email(self, token: str, email: str):
+        verification_url = f"{current_app.config['VERIFY_URL']}/reset-password/{token}"
         send_email(
             sender=current_app.config["MAIL_DEFAULT_SENDER"],
             recipient=email,
             template=templates.PasswordResetEmail,
-            verification_url=url_for("resetpasswordview", token_or_email=token, _external=True),
+            verification_url=verification_url,
         )
 
 
@@ -317,11 +323,13 @@ class ChangeEmailView(Resource):
         return session.query(User).filter_by(email=email).first() is not None
 
     def _send_verification_email(self, token, new_email: str):
+        verification_url = f"{current_app.config['VERIFY_URL']}/change-email/{token}"
+
         send_email(
             current_app.config["MAIL_DEFAULT_SENDER"],
             new_email,
             templates.VerificationEmail,
-            verification_url=url_for("changeemailview", token=token, _external=True),
+            verification_url=verification_url,
         )
 
     def _send_notify_email_change(self):
@@ -339,19 +347,15 @@ class VerifyEmailView(Resource):
         user = extensions.security_service.verify_email_token(token)
         with current_app.session_scope() as session:
             email_change_request = session.query(EmailChangeRequest).filter_by(token=token).first()
+            if email_change_request is not None:
+                extensions.security_service.change_email(
+                    email_change_request.user, email_change_request.new_email
+                )
 
-            if email_change_request is None:
-                return {"error": "no user associated with that verification token"}, 404
+                session.delete(email_change_request)
 
-            extensions.security_service.change_email(
-                email_change_request.user, email_change_request.new_email
-            )
-
-            email_change_request.user.confirmed_at = datetime.utcnow()
-
-            session.delete(email_change_request)
+            session.query(User).filter_by(id=user.id).update({"confirmed_at": datetime.utcnow()})
             session.commit()
-
             login_user(user)
 
             return {"message": "success"}, 200

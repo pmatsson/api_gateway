@@ -2,8 +2,13 @@ from os import environ
 
 # General
 DEBUG = True
-MAIL_DEFAULT_SENDER = "no-reply@adslabs.org"
 
+# Mail
+MAIL_DEFAULT_SENDER = "no-reply@adslabs.org"
+VERIFY_URL = "https://ui.adsabs.harvard.edu/#user/account/verify"
+
+
+# CORS
 CORS_HEADERS = [
     "Content-Type",
     "X-BB-Api-Client-Version",
@@ -66,7 +71,6 @@ REDIS_SERVICE_URL = "redis://redis:6379/0"
 CACHE_SERVICE_CACHE_TYPE = "RedisCache"
 CACHE_SERVICE_REDIS_URI = (
     # NOTE: Do not use the same redis DB as other services
-    # "redis://localhost:6379/1"
     "redis://redis:6379/1"
 )
 

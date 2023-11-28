@@ -1185,16 +1185,19 @@ class SecurityService(GatewayService, Security):
 
         return user
 
-    def generate_email_token(self) -> str:
+    def generate_email_token(self, user_id: str = None) -> str:
         """
-        Generate an email verification token for the current user.
+        Generate an email verification token for the provided user.
+
+        If no user id is provided, the current user is used.
 
         Returns:
             str: The email verification token.
         """
-        return self.generate_token(
-            current_user.id, salt=self.get_service_config("VERIFY_EMAIL_SALT")
-        )
+        if user_id is None:
+            user_id = current_user.id
+
+        return self.generate_token(user_id, salt=self.get_service_config("VERIFY_EMAIL_SALT"))
 
     def generate_password_token(self) -> str:
         """

@@ -496,7 +496,7 @@ class TestVerifyEmailView:
         with app.test_request_context():
             login_user(authenticated_user)
             _, status_code = verify_email_view.get(app.security_service.generate_email_token())
-            assert status_code == 404
+            assert status_code == 200
 
     def test_get_invalid_token(self, app, verify_email_view, authenticated_user):
         with app.test_request_context():
