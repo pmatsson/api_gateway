@@ -1,14 +1,23 @@
+import binascii
+import hashlib
 from datetime import datetime
 
 from authlib.integrations.flask_oauth2 import current_token
 from flask import current_app, request, session
+from flask.sessions import SecureCookieSessionInterface
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_restful import Resource, abort
 from flask_wtf.csrf import generate_csrf
 
 from apigateway import email_templates as templates
 from apigateway import extensions, schemas
-from apigateway.models import EmailChangeRequest, PasswordChangeRequest, User
+from apigateway.models import (
+    EmailChangeRequest,
+    OAuth2Client,
+    OAuth2Token,
+    PasswordChangeRequest,
+    User,
+)
 from apigateway.utils import (
     get_json_body,
     require_non_anonymous_bootstrap_user,
@@ -368,3 +377,122 @@ class ChacheManagementView(Resource):
         params = schemas.clear_cache_request.load(get_json_body(request))
         extensions.cache_service.clear_cache(params.key, params.parameters)
         return {"success": "success"}, 200
+
+
+class UserInfoView(Resource):
+    """
+    Implements getting user info from session ID, access token or
+    client id. It should be limited to internal use only.
+    """
+
+    decorators = [
+        extensions.limiter_service.shared_limit("500/43200 second"),
+        extensions.auth_service.require_oauth("adsws:internal"),
+    ]
+
+    def get(self, account_data):
+        """
+        This endpoint provides the full identifying data associated to a given
+        session, user id, access token or client id. Example:
+
+        curl -H 'authorization: Bearer:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+            'https://dev.adsabs.harvard.edu/v1/accounts/info/yyyy'
+
+        Where 'yyyy' can be a session, access token, user id or client id.
+
+        Notice that sessions are not server side, but client stored and server
+        signed to avoid user manipulation.
+        """
+        ## Input data can be a session, a access token or a user id
+        # 1) Try to treat input data as a session
+        try:
+            session_data = self._decodeFlaskCookie(account_data)
+            if "oauth_client" in session_data:
+                # Anonymous users always have their oauth_client id in the session
+                token = OAuth2Token.query.filter_by(client_id=session_data["oauth_client"]).first()
+                if token:
+                    return self._translate(token, source="session:client_id")
+                else:
+                    # Token not found in database
+                    return {"message": "Identifier not found [ERR 010]"}, 404
+
+            elif "user_id" in session_data:
+                # There can be more than one token per user (generally one for
+                # BBB and one for API requests), when client id is not stored
+                # in the session (typically for authenticated users) we pick
+                # just the first in the database that corresponds to BBB since
+                # sessions are used by BBB and not API requests
+                client = OAuth2Client.query.filter_by(
+                    user_id=session_data["user_id"], name="BB client"
+                ).first()
+
+                if client:
+                    token = OAuth2Token.query.filter_by(
+                        client_id=client.client_id, user_id=session_data["user_id"]
+                    ).first()
+
+                    if token:
+                        return self._translate(token, source="session:user_id")
+                    else:
+                        # Token not found in database
+                        return {"message": "Identifier not found [ERR 020]"}, 404
+                else:
+                    # Client ID not found in database
+                    return {"message": "Identifier not found [ERR 030]"}, 404
+            else:
+                # This should not happen, all ADS created session should contain that parameter
+                return {"message": "Missing oauth_client/user_id parameter in session"}, 500
+        except Exception:
+            # Try next identifier type
+            pass
+
+        # 2) Try to treat input data as access token
+        token = OAuth2Token.query.filter_by(access_token=account_data).first()
+        if token:
+            return self._translate(token, source="access_token")
+
+        # 3) Try to treat input data as client id
+        token = OAuth2Token.query.filter_by(client_id=account_data).first()
+        if token:
+            return self._translate(token, source="client_id")
+
+        # Data not decoded sucessfully/Identifier not found
+        return {"message": "Identifier not found [ERR 050]"}, 404
+
+    def _translate(self, token: OAuth2Token, source=None):
+        user: User = token.user
+        anonymous = user.is_anonymous_bootstrap_user
+
+        hashed_client_id = self._hash_id(token.client_id)
+        hashed_user_id = hashed_client_id if anonymous else self._hash_id(token.user_id)
+
+        return {
+            "hashed_user_id": hashed_user_id,  # Permanent, all the anonymous users will have hashed_client_id instead
+            "hashed_client_id": hashed_client_id,  # A single user has a client ID for the BB token and another for the API, anonymous users have a unique client ID linked to the anonymous user id (id 1)
+            "anonymous": anonymous,  # True, False or None if email could not be retreived/anonymous validation could not be executed
+            "source": source,  # Identifier used to recover information: session:client_id, session:user_id, user_id, access_token, client_id
+        }, 200
+
+    def _decodeFlaskCookie(self, cookie_value):
+        sscsi = SecureCookieSessionInterface()
+        signingSerializer = sscsi.get_signing_serializer(current_app)
+        return signingSerializer.loads(cookie_value)
+
+    def _hash_id(self, id):
+        # 10 rounds of SHA-256 hash digest algorithm for HMAC (pseudorandom function)
+        # with a length of 2x32
+        # NOTE: 100,000 rounds is recommended but it is too slow and security is not
+        # that important here, thus we just do 10 rounds
+
+        if id is None:
+            return None
+
+        return binascii.hexlify(
+            hashlib.pbkdf2_hmac(
+                "sha256",
+                str(id).encode(),
+                current_app.secret_key.encode(),
+                10,
+                dklen=32,
+            )
+        ).decode()

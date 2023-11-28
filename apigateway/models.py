@@ -56,7 +56,7 @@ class User(base_model, UserMixin):
     password = sa.orm.synonym("_password", descriptor=password)
 
     @hybrid_property
-    def is_anonymous_bootstrap_user(self):
+    def is_anonymous_bootstrap_user(self) -> bool:
         return current_app.config["ANONYMOUS_BOOTSTRAP_USER_EMAIL"] == self.email
 
     @property

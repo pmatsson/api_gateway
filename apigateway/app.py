@@ -161,6 +161,7 @@ def register_views(flask_api: Api):
     flask_api.add_resource(views.VerifyEmailView, "/verify/<string:token>")
     flask_api.add_resource(views.ResetPasswordView, "/user/reset-password/<string:token_or_email>")
     flask_api.add_resource(views.ChacheManagementView, "/cache")
+    flask_api.add_resource(views.UserInfoView, "/info/<string:account_data>")
 
 
 def create_app(**config):

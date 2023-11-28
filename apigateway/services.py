@@ -698,8 +698,6 @@ class LimiterService(GatewayService, Limiter):
         Returns:
             int: The cost for the rate limit.
         """
-        # st: dict = self.storage.storage
-        # self.limiter.storage.storage.
         processing_time_seconds = float(
             extensions.storage_service.get(f"{self._name}//{self._key_func()}/time") or 0
         )
