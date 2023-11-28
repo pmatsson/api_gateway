@@ -4,6 +4,7 @@ from flask_cors import CORS
 from flask_login import LoginManager
 from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy as FlaskSQLAlchemy
+from flask_talisman import Talisman
 from flask_wtf import CSRFProtect
 
 from apigateway.models import base_model
@@ -26,8 +27,11 @@ ma = Marshmallow()
 # Auth
 login_manager = LoginManager()
 oauth2_server = AuthorizationServer()
+
+# Security
 csrf = CSRFProtect()
 cors = CORS()
+talisman = Talisman()
 
 # Services
 security_service = SecurityService()

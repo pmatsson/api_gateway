@@ -1,12 +1,12 @@
 from adsmutils import ADSFlask
+from authlib.integrations.flask_oauth2 import current_token
 from authlib.integrations.sqla_oauth2 import (
     create_query_client_func,
     create_save_token_func,
 )
-from flask import Flask, jsonify, session
+from flask import Flask, abort, jsonify, request, session
 from flask_restful import Api
-from flask_wtf.csrf import CSRFError
-from marshmallow import ValidationError
+from marshmallow import ValidationError as MarshmallowValidationError
 
 from apigateway import exceptions, extensions, views
 from apigateway.models import OAuth2Client, OAuth2Token, User
@@ -29,6 +29,7 @@ def register_extensions(app: Flask):
         allow_headers=app.config.get("CORS_HEADERS"),
         methods=app.config.get("CORS_METHODS"),
         supports_credentials=True,
+        intercept_exceptions=True,
     )
 
     extensions.oauth2_server.init_app(
@@ -38,7 +39,6 @@ def register_extensions(app: Flask):
     )
 
     extensions.login_manager.init_app(app)
-
     extensions.redis_service.init_app(app)
     extensions.security_service.init_app(app)
     extensions.auth_service.init_app(app)
@@ -47,7 +47,7 @@ def register_extensions(app: Flask):
     extensions.cache_service.init_app(app)
     extensions.kakfa_producer_service.init_app(app)
     extensions.storage_service.init_app(app, extensions.redis_service)
-
+    extensions.talisman.init_app(app, force_https=True)
     extensions.csrf.init_app(app)
 
 
@@ -66,21 +66,85 @@ def register_hooks(app: Flask):
     def load_user(user_id):
         return User.query.filter_by(fs_uniquifier=user_id).first()
 
-    @app.errorhandler(CSRFError)
-    def csrf_error(e):
-        app.logger.warning(f"CSRF Blocked: {e.description}")
-        return jsonify({"error": "Invalid CSRF token"}), 400
+    @extensions.login_manager.unauthorized_handler
+    def unauthorized():
+        """
+        flask_login callback when @login_required is not met.
+        This overrides the default behavior or re-directing to a login view
+        """
+        abort(401)
 
-    @app.errorhandler(ValidationError)
-    def validation_error(e):
-        app.logger.info(f"Validation Error: {e.messages}")
-        error_messages = [", ".join(messages) for messages in e.messages.values()]
-        return jsonify({"error": ", ".join(error_messages)}), 400
+
+def register_error_handlers(app: Flask):
+    """Register error handlers for the Flask app.
+
+    Args:
+        app (Flask): The Flask app instance.
+    """
+
+    @app.errorhandler(MarshmallowValidationError)
+    def marshmallow_validation_error(e):
+        return jsonify({"message": e.normalized_messages()}), 400
 
     @app.errorhandler(exceptions.NotFoundError)
     def not_found_error(e):
-        app.logger.info(f"Not Found Error: {e.value}")
-        return jsonify({"error": e.value}), 404
+        return jsonify({"message": e.value}), 404
+
+    @app.errorhandler(exceptions.ValidationError)
+    def validation_error(e):
+        return jsonify({"message": e.value}), 400
+
+    @app.errorhandler(exceptions.NoClientError)
+    def no_client_error(e):
+        return jsonify({"message": e.value}), 500
+
+    @app.errorhandler(401)
+    def on_401(e):
+        return jsonify({"message": "Unauthorized"}), 401
+
+    @app.errorhandler(405)
+    def on_405(e):
+        return jsonify({"message": "Method not allowed"}), 405
+
+    @app.errorhandler(404)
+    def on_404(e):
+        return jsonify({"message": "Not found"}), 404
+
+
+def register_verbose_exception_logging(app: Flask):
+    """Configure logging."""
+
+    def log_exception(exc_info):
+        """
+        Override default Flask.log_exception for more verbose logging on
+        exceptions.
+        """
+        try:
+            oauth_user = current_token.user_id
+        except AttributeError:
+            oauth_user = None
+
+        app.logger.error(
+            """
+            Request:     {method} {path}
+            IP:          {ip}
+            Agent:       {agent_platform} | {agent_browser} {agent_browser_version}
+            Raw Agent:   {agent}
+            Oauth2:      {oauth_user}
+            """.format(
+                method=request.method,
+                path=request.path,
+                ip=request.remote_addr,
+                agent_platform=request.user_agent.platform,
+                agent_browser=request.user_agent.browser,
+                agent_browser_version=request.user_agent.version,
+                agent=request.user_agent.string,
+                oauth_user=oauth_user,
+            ),
+            exc_info=exc_info,
+        )
+
+    app.log_exception = log_exception
 
 
 def register_views(flask_api: Api):
@@ -108,9 +172,11 @@ def create_app(**config):
 
     app = ADSFlask(__name__, static_folder=None, local_config=config)
     flask_api = Api(app)
+    register_verbose_exception_logging(app)
     register_extensions(app)
-    register_views(flask_api)
     register_hooks(app)
+    register_error_handlers(app)
+    register_views(flask_api)
 
     extensions.proxy_service.register_services()
 

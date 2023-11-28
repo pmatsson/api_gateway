@@ -11,11 +11,7 @@ from typing import Callable, Tuple
 from urllib.parse import urljoin
 
 import requests
-from authlib.integrations.flask_oauth2 import (
-    ResourceProtector,
-    current_token,
-    token_authenticated,
-)
+from authlib.integrations.flask_oauth2 import current_token, token_authenticated
 from authlib.integrations.sqla_oauth2 import create_bearer_token_validator
 from cachelib.serializers import RedisSerializer
 from flask import Flask, g, request
@@ -37,7 +33,7 @@ from werkzeug.security import gen_salt
 from apigateway import extensions
 from apigateway.exceptions import NoClientError, NotFoundError, ValidationError
 from apigateway.models import AnonymousUser, OAuth2Client, OAuth2Token, Role, User
-from apigateway.utils import ProxyView
+from apigateway.utils import GatewayResourceProtector, ProxyView
 
 
 class GatewayService:
@@ -92,7 +88,7 @@ class AuthService(GatewayService):
             name (str, optional): The name of the AuthService. Defaults to "AUTH".
         """
         super().__init__(name)
-        self.require_oauth = ResourceProtector()
+        self.require_oauth = GatewayResourceProtector()
 
     def init_app(self, app: Flask):
         """Initializes the AuthService with the Flask app.

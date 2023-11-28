@@ -1,3 +1,4 @@
+import json
 import smtplib
 from email.message import EmailMessage
 from functools import wraps
@@ -5,11 +6,13 @@ from typing import Tuple
 from urllib.parse import urljoin
 
 import requests
+from authlib.integrations.flask_oauth2 import ResourceProtector
 from flask import Request, current_app, request
 from flask.views import View
 from flask_login import current_user
 
 from apigateway.email_templates import EmailTemplate
+from apigateway.exceptions import Oauth2HttpError
 
 
 def require_non_anonymous_bootstrap_user(func):
@@ -161,3 +164,9 @@ class ProxyView(View):
         path = request.full_path.replace(self._deploy_path, "", 1)
         path = path[1:] if path.startswith("/") else path
         return urljoin(self._remote_base_url, path)
+
+
+class GatewayResourceProtector(ResourceProtector):
+    def raise_error_response(self, error):
+        body = json.dumps(dict({"message": error.description}))
+        raise Oauth2HttpError(error.status_code, error.description, body, error.get_headers())

@@ -1,3 +1,6 @@
+from werkzeug.exceptions import HTTPException
+
+
 class ValidationError(Exception):
     """
     Exception raised when some user data are invalid
@@ -44,3 +47,21 @@ class NotFoundError(Exception):
 
     def __str__(self):
         return repr(self.value)
+
+
+class Oauth2HttpError(HTTPException):
+    """
+    Exception raised when an oauth2 error occurs
+    """
+
+    def __init__(self, code, description, body, headers, response=None):
+        super().__init__(description, response)
+        self.body = body
+        self.code = code
+        self.headers = headers
+
+    def get_body(self, environ=None, scope=None) -> str:
+        return self.body
+
+    def get_headers(self, environ=None, scope=None):
+        return self.headers
