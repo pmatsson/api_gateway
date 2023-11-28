@@ -529,7 +529,7 @@ class LimiterService(GatewayService, Limiter):
         def _after_request_hook(response: Response):
             processing_time: float = time.time() - g.request_start_time
 
-            key: str = f"{self._name}//{request.endpoint}/time"
+            key: str = f"{self._name}//{self._key_func()}/time"
 
             existing_value: float = float(extensions.storage_service.get(key) or -1)
             if existing_value < 0:
@@ -701,7 +701,7 @@ class LimiterService(GatewayService, Limiter):
         # st: dict = self.storage.storage
         # self.limiter.storage.storage.
         processing_time_seconds = float(
-            extensions.storage_service.get(f"{self._name}//{request.endpoint}/time") or 0
+            extensions.storage_service.get(f"{self._name}//{self._key_func()}/time") or 0
         )
 
         return 1 if processing_time_seconds <= 1 else int(2 ** (processing_time_seconds - 1))
