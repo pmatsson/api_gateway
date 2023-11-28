@@ -75,7 +75,7 @@ def verify_recaptcha(request: Request, endpoint: str = None):
         return True
 
     endpoint = endpoint or current_app.config["GOOGLE_RECAPTCHA_ENDPOINT"]
-    data = get_post_data(request)
+    data = get_json_body(request)
     payload = {
         "secret": current_app.config["GOOGLE_RECAPTCHA_PRIVATE_KEY"],
         "remoteip": request.remote_addr,
@@ -95,9 +95,9 @@ def verify_recaptcha(request: Request, endpoint: str = None):
     return response.json().get("success", False)
 
 
-def get_post_data(request: Request):
+def get_json_body(request: Request):
     """
-    Attempt to coerce POST json data from the request, falling
+    Attempt to coerce json data from the request, falling
     back to the raw data if json could not be coerced.
     """
     try:

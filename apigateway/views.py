@@ -10,6 +10,7 @@ from apigateway import email_templates as templates
 from apigateway import extensions, schemas
 from apigateway.models import EmailChangeRequest, PasswordChangeRequest, User
 from apigateway.utils import (
+    get_json_body,
     require_non_anonymous_bootstrap_user,
     send_email,
     verify_recaptcha,
@@ -18,7 +19,7 @@ from apigateway.utils import (
 
 class BootstrapView(Resource):
     def get(self):
-        params = schemas.bootstrap_request.load(request.json)
+        params = schemas.bootstrap_request.load(get_json_body(request))
 
         if not current_user.is_authenticated:
             bootstrap_user: User = User.query.filter_by(is_anonymous_bootstrap_user=True).first()
@@ -67,7 +68,7 @@ class UserAuthView(Resource):
     decorators = [extensions.limiter_service.shared_limit("30/120 second")]
 
     def post(self):
-        params = schemas.user_auth_request.load(request.json)
+        params = schemas.user_auth_request.load(get_json_body(request))
         with current_app.session_scope() as session:
             user: User = session.query(User).filter_by(email=params.email).first()
 
@@ -128,7 +129,7 @@ class UserManagementView(Resource):
     decorators = [extensions.limiter_service.shared_limit("50/600 second")]
 
     def post(self):
-        params = schemas.user_register_request.load(request.json)
+        params = schemas.user_register_request.load(get_json_body(request))
 
         if not verify_recaptcha(request):
             return {"error": "captcha was not verified"}, 403
@@ -183,7 +184,7 @@ class ChangePasswordView(Resource):
     @login_required
     @require_non_anonymous_bootstrap_user
     def post(self):
-        params = schemas.change_password_request.load(request.json)
+        params = schemas.change_password_request.load(get_json_body(request))
 
         if not current_user.validate_password(params.old_password):
             return {"error": "please verify your current password"}, 401
@@ -224,7 +225,7 @@ class ResetPasswordView(Resource):
             return {"message": "success"}, 200
 
     def put(self, token_or_email):
-        params = schemas.reset_password_request.load(request.json)
+        params = schemas.reset_password_request.load(get_json_body(request))
 
         with current_app.session_scope() as session:
             password_change_request = (
@@ -272,7 +273,7 @@ class ChangeEmailView(Resource):
     ]
 
     def post(self):
-        params = schemas.change_email_request.load(request.json)
+        params = schemas.change_email_request.load(get_json_body(request))
 
         if not current_user.validate_password(params.password):
             return {"error": "the provided password is incorrect"}, 401
@@ -360,6 +361,6 @@ class ChacheManagementView(Resource):
     decorators = [extensions.auth_service.require_oauth("adsws:internal")]
 
     def delete(self):
-        params = schemas.clear_cache_request.load(request.json)
+        params = schemas.clear_cache_request.load(get_json_body(request))
         extensions.cache_service.clear_cache(params.key, params.parameters)
         return {"success": "success"}, 200
