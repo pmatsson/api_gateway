@@ -5,6 +5,7 @@ from functools import wraps
 from typing import Tuple
 from urllib.parse import urljoin
 
+import jsondiff as jd
 import requests
 from authlib.integrations.flask_oauth2 import ResourceProtector
 from flask import Request, current_app, request
@@ -36,7 +37,7 @@ def send_email(
     # Do not send emails if in debug mode
     if current_app.config.get("TESTING", False):
         current_app.logger.warning(
-            "Email was NOT sent to '{}' with verification URL '{}' due to testing".format(
+            "Email was NOT sent to '{}' with verification URL '{}' due to TESTING flag = True".format(
                 recipient, verification_url
             )
         )
@@ -51,6 +52,46 @@ def send_email(
         template.msg_html.format(endpoint=verification_url, email_address=recipient),
         subtype="html",
     )
+
+    with smtplib.SMTP(mail_server) as s:
+        s.send_message(message)
+
+
+def send_feedback_email(
+    submitter_name: str,
+    submitter_email: str,
+    subject: str,
+    body: str,
+    attachments: list = None,
+    mail_server: str = "localhost",
+):
+    # Do not send emails if in debug mode
+    if current_app.config.get("TESTING", False):
+        current_app.logger.warning(
+            "Feedback email with subject {} was NOT sent due to TESTING flag = True".format(
+                subject
+            )
+        )
+        return
+
+    default_email = current_app.config["FEEDBACK_EMAIL"]
+    recipient = current_app.config["FEEDBACK_EMAIL_SUBJECT_OVERRIDE"].get(subject, default_email)
+
+    message = EmailMessage()
+    message["Subject"] = f"[{subject}] from {submitter_name} ({submitter_email})"
+    message["From"] = f"ADS Administation <{default_email}>"
+    message["To"] = recipient
+    message["reply-to"] = f"{submitter_name} <{submitter_email}>"
+    message.set_content(body)
+
+    if attachments:
+        for attachment in attachments:
+            message.add_attachment(
+                json.dumps(attachment[1]),
+                filename=attachment[0],
+                maintype="application",
+                subtype="json",
+            )
 
     with smtplib.SMTP(mail_server) as s:
         s.send_message(message)
@@ -170,3 +211,40 @@ class GatewayResourceProtector(ResourceProtector):
     def raise_error_response(self, error):
         body = json.dumps(dict({"message": error.description}))
         raise Oauth2HttpError(error.status_code, error.description, body, error.get_headers())
+
+
+def _format_changes(field, changes, updated):
+    formatted_changes = []
+    if isinstance(changes, dict):
+        formatted_changes = [f"{k} -- {v}" for k, v in changes.items()]
+    elif isinstance(changes, list):
+        for item in changes:
+            try:
+                if field == "references":
+                    formatted_changes.append(
+                        f"{updated['bibcode']}\t{item.replace('(bibcode) ', '').replace('(reference) ', '')}"
+                    )
+                else:
+                    formatted_changes.append(str(item) + "\n")
+            except:  # noqa
+                formatted_changes.append(str(item) + "\n")
+    else:
+        formatted_changes.append(str(changes) + "\n")
+    return formatted_changes
+
+
+def make_json_diff(original: str, updated: str):
+    diff_data = jd.diff(original, updated)
+
+    results = []
+    if diff_data.get("comments"):
+        results.append(f"\n\nComments: {diff_data['comments']}\n\n")
+
+    for field, changes in diff_data.items():
+        if field == "comments":
+            continue
+        results.append(f">>>> {field}\n")
+        results.extend(_format_changes(field, changes, updated))
+        results.append(">>>>\n")
+
+    return "\n".join(results)

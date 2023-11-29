@@ -7,6 +7,28 @@ DEBUG = True
 MAIL_DEFAULT_SENDER = "no-reply@adslabs.org"
 VERIFY_URL = "https://ui.adsabs.harvard.edu/#user/account/verify"
 
+# Feeback
+FEEDBACK_FORMS_ORIGIN = ("user_submission",)
+BBB_FEEDBACK_ORIGIN = ("bbb_feedback",)
+FEEDBACK_ALLOWED_ORIGINS = [FEEDBACK_FORMS_ORIGIN, BBB_FEEDBACK_ORIGIN]
+
+FEEDBACK_TEMPLATES = {
+    "Missing References": {"file": "missing_references.txt"},
+    "Associated Articles": {"file": "associated_articles.txt"},
+    "Updated Record": {"file": "updated_record.txt", "update": True},
+    "New Record": {"file": "new_record.txt", "new": True},
+    "Bumblebee Feedback": {"file": "bumblebee_feedback.txt"},
+}
+
+
+FEEDBACK_EMAIL = "adshelp@cfa.harvard.edu"
+FEEDBACK_EMAIL_SUBJECT_OVERRIDE = {
+    "Missing References": "adsabs@cfa.harvard.edu",
+}
+
+FEEDBACK_SLACK_END_POINT = "https://hooks.slack.com/services/TOKEN/TOKEN"
+FEEDBACK_SLACK_EMOJI = ":interrobang:"
+FORM_SLACK_EMOJI = ":inbox_tray:"
 
 # CORS
 CORS_HEADERS = [

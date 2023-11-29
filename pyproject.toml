@@ -31,7 +31,8 @@ dependencies = [
     'Flask-Caching',
     'kafka-python',
     'flask-cors',
-    'flask-talisman'
+    'flask-talisman',
+    'jsondiff'
 ]
 
 [project.urls]

@@ -1,9 +1,13 @@
 import binascii
 import hashlib
+import json
+from copy import copy
 from datetime import datetime
+from urllib.parse import unquote
 
+import requests
 from authlib.integrations.flask_oauth2 import current_token
-from flask import current_app, request, session
+from flask import current_app, render_template, request, session
 from flask.sessions import SecureCookieSessionInterface
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_restful import Resource, abort
@@ -20,8 +24,10 @@ from apigateway.models import (
 )
 from apigateway.utils import (
     get_json_body,
+    make_json_diff,
     require_non_anonymous_bootstrap_user,
     send_email,
+    send_feedback_email,
     verify_recaptcha,
 )
 
@@ -496,3 +502,194 @@ class UserInfoView(Resource):
                 dklen=32,
             )
         ).decode()
+
+
+class UserFeedbackView(Resource):
+    """
+    Forwards a user's feedback to Slack and/or email
+    """
+
+    decorators = [extensions.limiter_service.shared_limit("500/600 second")]
+
+    def post(self):
+        params = get_json_body(request)
+        current_app.logger.info(
+            "Received feedback of type {0}: {1}".format(params.get("_subject"), params)
+        )
+
+        if not self._verify_captcha(params):
+            return {"message": "Captcha was not verified"}, 403
+
+        if not self._is_origin_allowed(params):
+            return {"message": "No origin provided in feedback data"}, 404
+
+        email_body, attachments, submitter_email = self._prepare_email_and_attachments(params)
+        if not email_body:
+            return {"message": "Unable to generate email body"}, 404
+
+        if not self._send_email(params, email_body, attachments):
+            current_app.logger.error(
+                "Sending of email failed. Feedback data submitted by {0}: {1}".format(
+                    submitter_email, params
+                )
+            )
+
+        slack_data = self._prepare_slack_data(params, email_body)
+        if slack_data:
+            slack_response = self._post_to_slack(slack_data)
+            if "Slack API" in slack_response.text:
+                return {
+                    "message": "Re-directed due to malformed request or incorrect end point"
+                }, 302
+            elif slack_response.status_code != 200:
+                return {"message": "Unknown error"}, slack_response.status_code
+
+        return {"message", "success"}, 200
+
+    def _verify_captcha(self, params):
+        return verify_recaptcha(request) and params.get("g-recaptcha-response", False)
+
+    def _is_origin_allowed(self, params):
+        return params.get("origin", None) in current_app.config["FEEDBACK_ALLOWED_ORIGINS"]
+
+    def _send_email(self, params, submitter_email, email_body, attachments):
+        try:
+            send_feedback_email(
+                params.get("name", "TownCrier"),
+                submitter_email,
+                params.get("_subject"),
+                email_body,
+                attachments,
+            )
+            return True
+        except:  # noqa
+            return False
+
+    def _post_to_slack(self, slack_data):
+        try:
+            slack_response = requests.post(
+                url=current_app.config["FEEDBACK_SLACK_END_POINT"],
+                data=json.dumps(slack_data),
+                timeout=60,
+            )
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as ex:
+            current_app.logger.error("Failed to post to slack", ex)
+            abort(504)
+
+        current_app.logger.info("Slack response: {0}".format(slack_response.status_code))
+
+        # Slack annoyingly redirects if you have the wrong end point
+        current_app.logger.info("Slack API" in slack_response.text)
+
+        return slack_response
+
+    def _prepare_email_and_attachments(self, params):
+        """
+        Prepares the email body and attachments for sending user feedback emails
+        :param params: POST request data
+        :return: email body and attachments
+        """
+        try:
+            params_copy = copy(params)
+            feedback_templates = current_app.config["FEEDBACK_TEMPLATES"]
+            template = feedback_templates.get(params_copy["_subject"], None)
+            if params.get("origin") == current_app.config["FEEDBACK_FORMS_ORIGIN"]:
+                email_body, attachments = self._prepare_feedbackform_email(params_copy, template)
+                submitter_email = params.get("email")
+
+            elif params.get("origin") == current_app.config["BBB_FEEDBACK_ORIGIN"]:
+                email_body, attachments = self._prepare_bbb_feedback_email(params_copy, template)
+                submitter_email = params.get("_replyto")
+            else:
+                return None, None, None
+
+        except Exception as e:
+            current_app.logger.error("Error while processing feedback form data: {0}".format(e))
+            return None, None, None
+
+        return email_body, attachments, submitter_email
+
+    def _prepare_slack_data(self, params, email_body):
+        forms_origin = current_app.config["FEEDBACK_FORMS_ORIGIN"]
+        is_origin_feedback_form = params.get("origin") == forms_origin
+
+        text = (
+            'Received data from feedback form "{0}" from {1}'.format(
+                params.get("_subject"), params.get("email")
+            )
+            if is_origin_feedback_form
+            else "```Incoming Feedback```\n" + email_body
+        )
+
+        channel = params.get("channel", "#feedback")
+        username = params.get("username", "TownCrier")
+        icon_emoji = (
+            current_app.config["FORM_SLACK_EMOJI"]
+            if is_origin_feedback_form
+            else current_app.config["FEEDBACK_SLACK_EMOJI"]
+        )
+
+        return {
+            "text": text,
+            "channel": channel,
+            "username": username,
+            "icon_emoji": icon_emoji,
+        }
+
+    def _prepare_feedbackform_email(self, params, template):
+        """
+        Prepares the email body and attachments for sending user feedback emails
+        :param params: POST request data
+        :return: email body and attachments
+        """
+
+        email_body = self._prepare_email_body(params, template)
+        attachments = self._prepare_attachments(params, template)
+
+        return email_body, attachments
+
+    def _prepare_bbb_feedback_email(self, params, template):
+        """
+        Prepares the email body and attachments for sending user feedback emails
+        :param params: POST request data
+        :return: email body and attachments
+        """
+
+        keys_to_remove = ["channel", "username", "name", "_replyto", "g-recaptcha-response"]
+        params = {k: v for k, v in params.items() if k not in keys_to_remove}
+
+        params["_subject"] = "Bumblebee Feedback"
+        params["comments"] = params["comments"].encode("utf-8")
+
+        email_body = self._prepare_email_body(params, template)
+
+        return email_body, []
+
+    def _prepare_email_body(self, params, template):
+        if not template:
+            raise ValueError("No template found for {0}".format(params["_subject"]))
+
+        if template.get("update", False):
+            try:
+                params["diff"] = make_json_diff(params["original"], params["updated"])
+            except:  # noqa
+                params["diff"] = unquote(params.get("diff", ""))
+        elif template.get("new", False):
+            try:
+                params["new"]["author_list"] = ";".join([a for a in params["new"]["authors"]])
+            except:  # noqa
+                params["new"]["author_list"] = ""
+
+        body = render_template(template["file"], data=params)
+        body = body.replace("[tab]", "\t")
+
+        return body
+
+    def _prepare_attachments(self, params, template):
+        attachments = []
+        attachments.append((template["file"], params["new"]))
+
+        if template.get("update", False):
+            attachments.append(("original_record.json", params["original"]))
+
+        return attachments

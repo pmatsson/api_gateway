@@ -149,19 +149,22 @@ def register_verbose_exception_logging(app: Flask):
 
 def register_views(flask_api: Api):
     """Registers the views for the Flask application."""
-    flask_api.add_resource(views.BootstrapView, "/bootstrap")
-    flask_api.add_resource(views.CSRFView, "/csrf")
-    flask_api.add_resource(views.StatusView, "/status")
-    flask_api.add_resource(views.OAuthProtectedView, "/protected")
-    flask_api.add_resource(views.UserAuthView, "/user/login")
-    flask_api.add_resource(views.LogoutView, "/user/logout")
-    flask_api.add_resource(views.UserManagementView, "/user")
-    flask_api.add_resource(views.ChangePasswordView, "/user/change-password")
-    flask_api.add_resource(views.ChangeEmailView, "/user/change-email")
-    flask_api.add_resource(views.VerifyEmailView, "/verify/<string:token>")
-    flask_api.add_resource(views.ResetPasswordView, "/user/reset-password/<string:token_or_email>")
-    flask_api.add_resource(views.ChacheManagementView, "/cache")
-    flask_api.add_resource(views.UserInfoView, "/info/<string:account_data>")
+    flask_api.add_resource(views.BootstrapView, "/accounts/bootstrap")
+    flask_api.add_resource(views.CSRFView, "/accounts/csrf")
+    flask_api.add_resource(views.StatusView, "/accounts/status")
+    flask_api.add_resource(views.OAuthProtectedView, "/accounts/protected")
+    flask_api.add_resource(views.UserAuthView, "/accounts/user/login")
+    flask_api.add_resource(views.LogoutView, "/accounts/user/logout")
+    flask_api.add_resource(views.UserManagementView, "/accounts/user")
+    flask_api.add_resource(views.ChangePasswordView, "/accounts/user/change-password")
+    flask_api.add_resource(views.ChangeEmailView, "/accounts/user/change-email")
+    flask_api.add_resource(views.VerifyEmailView, "/accounts/verify/<string:token>")
+    flask_api.add_resource(
+        views.ResetPasswordView, "/accounts/user/reset-password/<string:token_or_email>"
+    )
+    flask_api.add_resource(views.UserInfoView, "/accounts/info/<string:account_data>")
+    flask_api.add_resource(views.ChacheManagementView, "/admin/cache")
+    flask_api.add_resource(views.UserFeedbackView, "/feedback")
 
 
 def create_app(**config):
@@ -171,8 +174,8 @@ def create_app(**config):
         ADSFlask: Application object
     """
 
-    app = ADSFlask(__name__, static_folder=None, local_config=config)
-    flask_api = Api(app)
+    app = ADSFlask(__name__, static_folder=None, template_folder="templates", local_config=config)
+    flask_api = Api(app, prefix="/v1")
     register_verbose_exception_logging(app)
     register_extensions(app)
     register_hooks(app)
