@@ -4,7 +4,7 @@ SciX API Gateway, the core API module for SciX
 
 ## Getting Started
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
+These instructions will get you a copy of the project up and running in a docker container or on your local machine for development purposes.
 
 ### Prerequisites
 
@@ -12,7 +12,6 @@ To run this project, you will need:
 
 - Python 3.6 or higher
 - Docker
-- Docker Compose
 
 
 ### Configuration
@@ -27,7 +26,7 @@ To start the application, navigate to the project directory in your terminal and
  docker compose up
 ```
 
-This command will start all the services defined in the docker-compose.yml file. The API should now be running at http://localhost:5000.
+This command will start all the services defined in the docker-compose.yml file. The API should now be running at `http://localhost:5000`.
 
 
 
@@ -65,6 +64,7 @@ pip install .
 python wsgi.py
 ```
 
+### Database versioning
 
 Database versioning is managed using Flask-Alembic. You can upgrade to the latest revision or downgrade to a previous one using the following commands:
 
