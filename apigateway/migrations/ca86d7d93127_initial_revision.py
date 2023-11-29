@@ -134,4 +134,4 @@ def downgrade() -> None:
     op.drop_table("email_change_request")
     op.drop_table("user")
     op.drop_table("role")
-    # ### end Alembic commands ###
+    # ### end Alembic commands  ###
