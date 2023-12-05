@@ -124,6 +124,19 @@ class ClearCacheRequestSchema:
     parameters: dict = None
 
 
+@dataclass
+class ClearLimitRequestSchema:
+    key: str = field()
+    scope: str = ""
+
+    @validates_schema
+    def validate_clear_all(self, data, **kwargs):
+        if data["key"] == "*" and data["scope"] != "":
+            raise ValidationError(
+                "Do not provide a scope when clearing ALL limits", field_name="scope"
+            )
+
+
 bootstrap_request = marshmallow_dataclass.class_schema(BootstrapGetRequestSchema)()
 bootstrap_response = BootstrapGetResponseSchema()
 user_auth_request = marshmallow_dataclass.class_schema(UserAuthPostRequestSchema)()
@@ -132,3 +145,4 @@ change_password_request = marshmallow_dataclass.class_schema(ChangePasswordReque
 change_email_request = marshmallow_dataclass.class_schema(ChangeEmailRequestSchema)()
 reset_password_request = marshmallow_dataclass.class_schema(ResetPasswordRequestSchema)()
 clear_cache_request = marshmallow_dataclass.class_schema(ClearCacheRequestSchema)()
+clear_limit_request = marshmallow_dataclass.class_schema(ClearLimitRequestSchema)()

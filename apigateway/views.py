@@ -377,12 +377,63 @@ class VerifyEmailView(Resource):
 
 
 class ChacheManagementView(Resource):
+    """A view for managing the cache.
+
+    This class provides an API endpoint for clearing the cache based on the provided key and parameters.
+
+
+    Examples:
+
+    Clearing the cache for a specific resource and parameters:
+
+    DELETE
+    {
+        "key": "/scan/metadata/article/extra/123",
+        "parameters": {"test": "123"}
+    }
+
+    """
+
     decorators = [extensions.auth_service.require_oauth("adsws:internal")]
 
     def delete(self):
         params = schemas.clear_cache_request.load(get_json_body(request))
         extensions.cache_service.clear_cache(params.key, params.parameters)
-        return {"success": "success"}, 200
+        return {"message": "success"}, 200
+
+
+class LimiterManagementView(Resource):
+    """A view for managing rate limits.
+
+    This class provides an API endpoint for clearing rate limits based on the provided key and scope.
+
+    Examples:
+
+    Clearing the rate limit for a specific internal resource and user:
+
+    DELETE
+    {
+        "key": "csrfview",
+        "scope": "csrfview:user@example.com"
+    }
+
+    Clearing the rate limit for a external resource and user:
+
+    DELETE
+    {
+        "key": "/scan/metadata/collection",
+        "scope": "user@example.com"
+    }
+
+
+    """
+
+    decorators = [extensions.auth_service.require_oauth("adsws:internal")]
+
+    def delete(self):
+        params = schemas.clear_limit_request.load(get_json_body(request))
+        extensions.limiter_service.clear_limits(params.key, params.scope)
+        return {"message": "success"}, 200
 
 
 class UserInfoView(Resource):

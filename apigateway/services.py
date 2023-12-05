@@ -616,6 +616,20 @@ class LimiterService(GatewayService, Limiter):
                 self._symbolic_ratelimits[endpoint] = self._symbolic_ratelimits[group]
                 break
 
+    def clear_limits(self, request_endpoint: str, scope: str):
+        if request_endpoint == "*":
+            self.reset()
+        else:
+            defaults, decorated = self.limit_manager.resolve_limits(self._app, request_endpoint)
+            all_limits = list(defaults) + list(decorated)
+            for limit in all_limits:
+                key = limit.limit.key_for(request_endpoint, scope)
+                self.storage.clear(key)
+
+            extensions.storage_service.delete(
+                f"{self._name}//{self._key_func(request_endpoint)}/time"
+            )
+
     def _limit_and_check(
         self,
         limit_value: str = None,
@@ -704,7 +718,7 @@ class LimiterService(GatewayService, Limiter):
 
         return 1 if processing_time_seconds <= 1 else int(2 ** (processing_time_seconds - 1))
 
-    def _key_func(self) -> str:
+    def _key_func(self, request_endpoint=None) -> str:
         """Returns the key for the rate limit.
 
         This method returns the key for the rate limit based on the API endpoint.
@@ -712,9 +726,12 @@ class LimiterService(GatewayService, Limiter):
         Returns:
             str: The key for the rate limit.
         """
-        if request.endpoint in self._symbolic_ratelimits:
-            return self._symbolic_ratelimits[request.endpoint]["name"]
-        return request.endpoint
+
+        request_endpoint = request_endpoint or request.endpoint
+
+        if request_endpoint in self._symbolic_ratelimits:
+            return self._symbolic_ratelimits[request_endpoint]["name"]
+        return request_endpoint
 
     def _scope_func(self, endpoint_name: str) -> str:
         """Returns the scope for the rate limit.
