@@ -8,8 +8,8 @@ MAIL_DEFAULT_SENDER = "no-reply@adslabs.org"
 VERIFY_URL = "https://ui.adsabs.harvard.edu/#user/account/verify"
 
 # Feeback
-FEEDBACK_FORMS_ORIGIN = ("user_submission",)
-BBB_FEEDBACK_ORIGIN = ("bbb_feedback",)
+FEEDBACK_FORMS_ORIGIN = "user_submission"
+BBB_FEEDBACK_ORIGIN = "bbb_feedback"
 FEEDBACK_ALLOWED_ORIGINS = [FEEDBACK_FORMS_ORIGIN, BBB_FEEDBACK_ORIGIN]
 
 FEEDBACK_TEMPLATES = {
