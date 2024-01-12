@@ -43,7 +43,7 @@ class BootstrapGetRequestSchema:
     create_new: bool = field(default=False)
     redirect_uri: str = field(default=None)
     client_name: str = field(default=None)
-    expires: datetime = field(default=datetime(2500, 1, 1))
+    expires: datetime = field(default=datetime(2050, 1, 1))
     individual_ratelimits: dict = field(default=None)
 
 

@@ -133,7 +133,7 @@ class AuthService(GatewayService):
         if client is None:
             raise NoClientError(f"Client {client_id} not found")
 
-        token = OAuth2Token.query.filter_by(client_id=client_id).first()
+        token = OAuth2Token.query.filter_by(client_id=client.id).first()
 
         if token is None:
             token = self._create_temporary_token(client)
@@ -145,7 +145,7 @@ class AuthService(GatewayService):
         client_name: str = None,
         scope: str = None,
         ratelimit_multiplier: float = 1.0,
-        expires: datetime = datetime(2500, 1, 1),
+        expires: datetime = datetime(2050, 1, 1),
         create_client: bool = False,
         individual_ratelimit_multipliers: dict = None,
     ) -> Tuple[OAuth2Client, OAuth2Token]:
@@ -155,7 +155,7 @@ class AuthService(GatewayService):
             client_name (type, optional): The name of the client. Defaults to None.
             scopes (type, optional): The scopes for the client. Defaults to None.
             ratelimit_multiplier (float, optional): The ratelimit factor for the client. Defaults to 1.0.
-            expires (type, optional): The expiration date for the token. Defaults to datetime(2500, 1, 1).
+            expires (type, optional): The expiration date for the token. Defaults to datetime(2050, 1, 1).
             create_client (bool, optional): Whether to create a new client or not. Defaults to False.
             individual_ratelimit_multipliers (dict, optional): A dictionary of individual ratelimit multipliers for specific endpoints. Defaults to None.
 
@@ -164,9 +164,6 @@ class AuthService(GatewayService):
         """
         if current_user.is_anonymous_bootstrap_user:
             return self.bootstrap_anonymous_user()
-
-        self._validate_ratelimit(ratelimit_multiplier)
-        self._validate_scopes(scope)
 
         client_name = client_name or self._app.config.get("BOOTSTRAP_CLIENT_NAME", "BB client")
 
@@ -180,6 +177,9 @@ class AuthService(GatewayService):
         client = next((c for c in clients if c.client_name == client_name), None)
 
         if client is None or create_client:
+            self._validate_ratelimit(ratelimit_multiplier)
+            self._validate_scopes(scope)
+
             client = OAuth2Client(
                 user_id=current_user.get_id(),
                 ratelimit_multiplier=ratelimit_multiplier,
@@ -191,6 +191,7 @@ class AuthService(GatewayService):
 
             client.gen_salt()
             extensions.db.session.add(client)
+            extensions.db.session.commit()
 
             token = self._create_user_token(client, expires=expires)
             extensions.db.session.add(token)
@@ -198,7 +199,7 @@ class AuthService(GatewayService):
             self._logger.info("Created BB client for {email}".format(email=current_user.email))
         else:
             token = OAuth2Token.query.filter_by(
-                client_id=client.client_id,
+                client_id=client.id,
                 user_id=current_user.get_id(),
             ).first()
 
@@ -224,8 +225,14 @@ class AuthService(GatewayService):
         if not current_user.is_anonymous_bootstrap_user:
             raise ValidationError("Only anonymous bootstrap user can create temporary tokens")
 
-        client = OAuth2Client(
-            user_id=current_user.get_id(),
+        client = OAuth2Client(user_id=current_user.get_id())
+
+        client.set_client_metadata(
+            {
+                "client_name": "Anonymous client",
+                "description": "Anonymous client",
+                "scope": " ".join(current_user.allowed_scopes),
+            }
         )
 
         client.gen_salt()
@@ -240,13 +247,13 @@ class AuthService(GatewayService):
     def _create_user_token(
         self,
         client: OAuth2Client,
-        expires=datetime(2500, 1, 1),
+        expires=datetime(2050, 1, 1),
     ) -> OAuth2Token:
         """Creates an OAuth2Token for the given OAuth2Client.
 
         Args:
             client (OAuth2Client): The OAuth2Client to create the token for.
-            expires (type, optional): The expiration date for the token. Defaults to datetime(2500, 1, 1).
+            expires (type, optional): The expiration date for the token. Defaults to datetime(2050, 1, 1).
 
         Returns:
             OAuth2Token: The created OAuth2Token.
@@ -255,7 +262,7 @@ class AuthService(GatewayService):
 
         token = OAuth2Token(
             token_type="bearer",
-            client_id=client.client_id,
+            client_id=client.id,
             user_id=client.user_id,
             access_token=gen_salt(salt_length),
             refresh_token=gen_salt(salt_length),
@@ -285,7 +292,7 @@ class AuthService(GatewayService):
 
         return OAuth2Token(
             token_type="bearer",
-            client_id=client.client_id,
+            client_id=client.id,
             user_id=client.user_id,
             access_token=gen_salt(salt_length),
             refresh_token=gen_salt(salt_length),
@@ -541,7 +548,7 @@ class LimiterService(GatewayService, Limiter):
             return response
 
         def _token_authenticated(sender, token=None, **kwargs):
-            client = OAuth2Client.query.filter_by(client_id=token.client_id).first()
+            client = OAuth2Client.query.filter_by(id=token.client_id).first()
             level = getattr(client, "ratelimit", 1.0) if client else 0.0
             headers = Headers(request.headers.items())
             headers.add_header("X-Adsws-Ratelimit-Level", str(level))

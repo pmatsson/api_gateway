@@ -107,10 +107,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.String(), nullable=True),
         sa.Column("client_id", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["client_id"],
-            ["oauth2client.id"],
-        ),
+        sa.ForeignKeyConstraint(["client_id"], ["oauth2client.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["user.fs_uniquifier"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("access_token"),

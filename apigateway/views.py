@@ -466,7 +466,9 @@ class UserInfoView(Resource):
             session_data = self._decodeFlaskCookie(account_data)
             if "oauth_client" in session_data:
                 # Anonymous users always have their oauth_client id in the session
-                token = OAuth2Token.query.filter_by(client_id=session_data["oauth_client"]).first()
+                token = OAuth2Token.query.filter(
+                    OAuth2Client.client_id == session_data["oauth_client"]
+                ).first()
                 if token:
                     return self._translate(token, source="session:client_id")
                 else:
@@ -485,7 +487,7 @@ class UserInfoView(Resource):
 
                 if client:
                     token = OAuth2Token.query.filter_by(
-                        client_id=client.client_id, user_id=session_data["user_id"]
+                        client_id=client.id, user_id=session_data["user_id"]
                     ).first()
 
                     if token:
@@ -509,7 +511,7 @@ class UserInfoView(Resource):
             return self._translate(token, source="access_token")
 
         # 3) Try to treat input data as client id
-        token = OAuth2Token.query.filter_by(client_id=account_data).first()
+        token = OAuth2Token.query.filter(OAuth2Client.client_id == account_data).first()
         if token:
             return self._translate(token, source="client_id")
 
