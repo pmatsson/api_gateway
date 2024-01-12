@@ -124,7 +124,7 @@ class OAuth2Token(base_model, OAuth2TokenMixin):
     __tablename__ = "oauth2token"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    user_id = sa.Column(sa.Integer, sa.ForeignKey("user.fs_uniquifier", ondelete="CASCADE"))
+    user_id = sa.Column(sa.String, sa.ForeignKey("user.fs_uniquifier", ondelete="CASCADE"))
     user = relationship("User")
     client_id = sa.Column(sa.Integer(), sa.ForeignKey("oauth2client.id"))
     client = relationship("OAuth2Client")

@@ -105,7 +105,7 @@ def upgrade() -> None:
         sa.Column("refresh_token_revoked_at", sa.Integer(), nullable=False),
         sa.Column("expires_in", sa.Integer(), nullable=False),
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=True),
+        sa.Column("user_id", sa.String(), nullable=True),
         sa.Column("client_id", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(
             ["client_id"],
