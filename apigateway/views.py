@@ -746,3 +746,16 @@ class UserFeedbackView(Resource):
             attachments.append(("original_record.json", params["original"]))
 
         return attachments
+
+
+class Resources(Resource):
+    """Overview of available resources"""
+
+    def get(self):
+        r = {}
+        app = current_app
+        r[app.name] = {}
+        r[app.name]["endpoints"] = []
+        for rule in app.url_map.iter_rules():
+            r[app.name]["endpoints"].append(rule.rule)
+        return r

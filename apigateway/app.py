@@ -166,6 +166,7 @@ def register_views(flask_api: Api):
     flask_api.add_resource(views.ChacheManagementView, "/admin/cache")
     flask_api.add_resource(views.LimiterManagementView, "/admin/limit")
     flask_api.add_resource(views.UserFeedbackView, "/feedback")
+    flask_api.add_resource(views.Resources, "/resources")
 
 
 def create_app(**config):
