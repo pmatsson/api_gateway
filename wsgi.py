@@ -4,8 +4,9 @@ from werkzeug.wrappers import Response
 
 from apigateway.app import create_app
 
+application = DispatcherMiddleware(Response("Not Found", status=404), {"/v1": create_app()})
+
 if __name__ == "__main__":
-    application = DispatcherMiddleware(Response("Not Found", status=404), {"/v1": create_app()})
 
     run_simple(
         "0.0.0.0",
