@@ -177,7 +177,7 @@ def create_app(**config):
     """
 
     app = ADSFlask(__name__, static_folder=None, template_folder="templates", local_config=config)
-    flask_api = Api(app, prefix="/v1")
+    flask_api = Api(app)
     register_verbose_exception_logging(app)
     register_extensions(app)
     register_hooks(app)
