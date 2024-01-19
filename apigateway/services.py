@@ -396,8 +396,9 @@ class ProxyService(GatewayService):
             self._logger.error("Could not fetch resource document for %s: %s", base_url, ex)
             return
 
+        self._logger.debug("Discovered %s endpoints:", deploy_path)
         for remote_path, properties in resource_json.items():
-            self._logger.debug("Registering resource %s", remote_path)
+            self._logger.debug("- %s", remote_path)
 
             properties.setdefault(
                 "rate_limit",
@@ -620,17 +621,20 @@ class LimiterService(GatewayService, Limiter):
                         "per_second": values.get("per_second", per_second),
                     }
 
+                self._logger.debug(f'"{endpoint}" added to limiter group "{group}"')
                 self._symbolic_ratelimits[endpoint] = self._symbolic_ratelimits[group]
                 break
 
     def clear_limits(self, request_endpoint: str, scope: str):
         if request_endpoint == "*":
+            self._logger.info("Clearing all limits")
             self.reset()
         else:
             defaults, decorated = self.limit_manager.resolve_limits(self._app, request_endpoint)
             all_limits = list(defaults) + list(decorated)
             for limit in all_limits:
                 key = limit.limit.key_for(request_endpoint, scope)
+                self._logger.info("Clearing limit for key %s", key)
                 self.storage.clear(key)
 
             extensions.storage_service.delete(
@@ -969,10 +973,12 @@ class CacheService(GatewayService, Cache):
             bool: True if the cache is cleared successfully, False otherwise.
         """
         if request_path == "*":
+            self._logger.info("Clearing all cache")
             return self.clear()
 
         params_tuple = list(parameters.items()) if parameters else []
         key = self._make_cache_key(request_path, params_tuple)
+        self._logger.info("Clearing cache for key %s", key)
         return self.delete(key)
 
     def cached(
