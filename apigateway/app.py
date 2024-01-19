@@ -176,7 +176,12 @@ def create_app(**config):
         ADSFlask: Application object
     """
 
-    app = ADSFlask(__name__, static_folder=None, template_folder="templates", local_config=config)
+    app = ADSFlask(
+        __name__,
+        static_folder=None,
+        template_folder="templates",
+        local_config=config,
+    )
     flask_api = Api(app)
     register_verbose_exception_logging(app)
     register_extensions(app)

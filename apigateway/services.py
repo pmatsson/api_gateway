@@ -1069,7 +1069,7 @@ class SecurityService(GatewayService, Security):
 
     def __init__(self, name: str = "SECURITY_SERVICE"):
         GatewayService.__init__(self, name)
-        Security.__init__(self)
+        Security.__init__(self, register_blueprint=False)
 
     def init_app(self, app: Flask):
         GatewayService.init_app(self, app)
@@ -1079,6 +1079,8 @@ class SecurityService(GatewayService, Security):
         app.config.setdefault(
             "SECURITY_PASSWORD_SALT", self.get_service_config("VERIFY_PASSWORD_SALT")
         )
+        app.config.setdefault("SECURITY_STATIC_FOLDER", None)
+
         Security.init_app(
             self,
             app,
