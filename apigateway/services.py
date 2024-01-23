@@ -137,6 +137,8 @@ class AuthService(GatewayService):
 
         if token is None:
             token = self._create_temporary_token(client)
+            extensions.db.session.add(token)
+            extensions.db.session.commit()
 
         return client, token
 
