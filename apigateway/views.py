@@ -65,7 +65,7 @@ class BootstrapView(Resource):
             session["oauth_client"] = client.client_id
 
         else:
-            _, token = extensions.auth_service.bootstrap_user(
+            client, token = extensions.auth_service.bootstrap_user(
                 client_name=params.client_name,
                 scope=params.scope,
                 ratelimit_multiplier=params.ratelimit,
@@ -74,7 +74,21 @@ class BootstrapView(Resource):
                 create_client=params.create_new,
             )
 
-        return schemas.bootstrap_response.dump(token), 200
+        response = {
+            "access_token": token.access_token,
+            "refresh_token": token.refresh_token,
+            "expires_in": token.expires_in,
+            "token_type": token.token_type,
+            "scopes": token.scope,
+            "username": token.user.email,
+            "anonymous": token.user.is_anonymous_bootstrap_user,
+            "client_id": client.client_id,
+            "client_name": client.client_name,
+            "client_secret": client.client_secret,
+            "ratelimit": client.ratelimit_multiplier,
+            "individual_ratelimits": client.individual_ratelimit_multipliers,
+        }
+        return schemas.bootstrap_response.dump(response), 200
 
 
 class UserAuthView(Resource):

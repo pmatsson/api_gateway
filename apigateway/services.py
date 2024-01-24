@@ -238,9 +238,10 @@ class AuthService(GatewayService):
         )
 
         client.gen_salt()
-        token = self._create_temporary_token(client)
-
         extensions.db.session.add(client)
+        extensions.db.session.commit()
+
+        token = self._create_temporary_token(client)
         extensions.db.session.add(token)
         extensions.db.session.commit()
 

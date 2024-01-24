@@ -4,11 +4,11 @@ from datetime import datetime
 
 import marshmallow.validate
 import marshmallow_dataclass
-from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemySchema, auto_field
-from marshmallow import ValidationError, fields, validates_schema
+from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemySchema
+from marshmallow import ValidationError, validates_schema
 from marshmallow.validate import Validator
 
-from apigateway.models import OAuth2Token, User
+from apigateway.models import User
 
 
 class PasswordValidator(Validator):
@@ -47,26 +47,20 @@ class BootstrapGetRequestSchema:
     individual_ratelimits: dict = field(default=None)
 
 
+@dataclass
 class BootstrapGetResponseSchema(SQLAlchemySchema):
-    class Meta:
-        model = OAuth2Token
-        include_fk = True
-        include_relationships = True
-
-    access_token = auto_field()
-    refresh_token = auto_field()
-    expire_in = auto_field("expires_in")
-    token_type = fields.Constant("Bearer")
-    username = fields.Str(attribute="user.email")
-    scopes = auto_field("scope")
-    anonymous = fields.Boolean(attribute="user.is_anonymous_bootstrap_user")
-    client_id = fields.Str(attribute="client.client_id")
-    client_secret = fields.Str(attribute="client.client_secret")
-    ratelimit = fields.Float(attribute="client.ratelimit_multiplier")
-    client_name = fields.Str(attribute="client.name")
-    individual_ratelimits = fields.Dict(
-        attribute="client.individual_ratelimit_multipliers", allow_none=True
-    )
+    access_token: str = field(default=None)
+    refresh_token: str = field(default=None)
+    expires_in: str = field(default=None)
+    token_type: str = field(default="Bearer")
+    username: str = field(default=None)
+    scopes: str = field(default=None)
+    anonymous: bool = field(default=None)
+    client_id: str = field(default=None)
+    client_secret: str = field(default=None)
+    ratelimit: float = field(default=None)
+    client_name: str = field(default=None)
+    individual_ratelimits: dict = field(default=None)
 
 
 @dataclass
@@ -138,7 +132,7 @@ class ClearLimitRequestSchema:
 
 
 bootstrap_request = marshmallow_dataclass.class_schema(BootstrapGetRequestSchema)()
-bootstrap_response = BootstrapGetResponseSchema()
+bootstrap_response = marshmallow_dataclass.class_schema(BootstrapGetResponseSchema)()
 user_auth_request = marshmallow_dataclass.class_schema(UserAuthPostRequestSchema)()
 user_register_request = marshmallow_dataclass.class_schema(UserRegisterPostRequestSchema)()
 change_password_request = marshmallow_dataclass.class_schema(ChangePasswordRequestSchema)()
