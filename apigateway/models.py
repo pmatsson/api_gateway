@@ -104,7 +104,7 @@ class OAuth2Client(base_model, OAuth2ClientMixin):
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     user_id = sa.Column(sa.String, sa.ForeignKey("user.fs_uniquifier", ondelete="CASCADE"))
-    ratelimit_multiplier = sa.Column(sa.Float, default=0.0)
+    ratelimit_multiplier = sa.Column(sa.Float, default=1.0)
     individual_ratelimit_multipliers = sa.Column(sa.JSON)
 
     user = relationship("User")
