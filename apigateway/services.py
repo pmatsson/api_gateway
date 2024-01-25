@@ -231,7 +231,7 @@ class AuthService(GatewayService):
 
         client.set_client_metadata(
             {
-                "client_name": "Anonymous client",
+                "client_name": self._app.config.get("BOOTSTRAP_CLIENT_NAME", "BB client"),
                 "description": "Anonymous client",
                 "scope": " ".join(current_user.allowed_scopes),
             }

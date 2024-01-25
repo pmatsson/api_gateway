@@ -41,7 +41,7 @@ class User(base_model, UserMixin):
     last_login_at = sa.Column(sa.DateTime())
     login_count = sa.Column(sa.Integer)
     registered_at = sa.Column(sa.DateTime())
-    ratelimit_quota = sa.Column(sa.Integer)
+    ratelimit_quota = sa.Column(sa.Float)
     _allowed_scopes = sa.Column(sa.Text)
     fs_uniquifier = sa.Column(sa.String(64), unique=True, nullable=False)
     roles = relationship("Role", secondary=roles_users)
