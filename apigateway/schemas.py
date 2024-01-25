@@ -4,9 +4,11 @@ from datetime import datetime
 
 import marshmallow.validate
 import marshmallow_dataclass
+from citext import CIText
 from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemySchema
-from marshmallow import ValidationError, validates_schema
+from marshmallow import ValidationError, fields, validates_schema
 from marshmallow.validate import Validator
+from marshmallow_sqlalchemy import ModelConverter
 
 from apigateway.models import User
 
@@ -28,10 +30,20 @@ class PasswordValidator(Validator):
         return value
 
 
+class CITextField(fields.String):
+    pass
+
+
+class CustomModelConverter(ModelConverter):
+    SQLA_TYPE_MAPPING = ModelConverter.SQLA_TYPE_MAPPING.copy()
+    SQLA_TYPE_MAPPING[CIText] = CITextField
+
+
 class UserSchema(SQLAlchemyAutoSchema):
     class Meta:
         model = User
         include_fk = True
+        model_converter = CustomModelConverter
 
 
 @dataclass

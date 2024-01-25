@@ -2,6 +2,7 @@ from typing import List
 
 import sqlalchemy as sa
 from authlib.integrations.sqla_oauth2 import OAuth2ClientMixin, OAuth2TokenMixin
+from citext import CIText
 from flask import current_app
 from flask_login import AnonymousUserMixin
 from flask_security import RoleMixin, UserMixin
@@ -31,7 +32,7 @@ class User(base_model, UserMixin):
     # the get_id() method of the UserMixin class returns the 'fs_uniquifier' value
 
     id = sa.Column(sa.Integer, primary_key=True)
-    email = sa.Column(sa.Text, unique=True)
+    email = sa.Column(CIText(), unique=True)
     _password = sa.Column(sa.String(255), name="password")
     given_name = sa.Column(sa.String(255))
     family_name = sa.Column(sa.String(255))
@@ -106,6 +107,7 @@ class OAuth2Client(base_model, OAuth2ClientMixin):
     user_id = sa.Column(sa.String, sa.ForeignKey("user.fs_uniquifier", ondelete="CASCADE"))
     ratelimit_multiplier = sa.Column(sa.Float, default=1.0)
     individual_ratelimit_multipliers = sa.Column(sa.JSON)
+    last_activity = sa.Column(sa.DateTime, nullable=True)
 
     user = relationship("User")
 
@@ -128,6 +130,8 @@ class OAuth2Token(base_model, OAuth2TokenMixin):
     user = relationship("User")
     client_id = sa.Column(sa.Integer(), sa.ForeignKey("oauth2client.id", ondelete="CASCADE"))
     client = relationship("OAuth2Client")
+    is_personal = sa.Column(sa.Boolean, default=False)
+    is_internal = sa.Column(sa.Boolean, default=False)
 
 
 class EmailChangeRequest(base_model):

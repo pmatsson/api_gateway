@@ -1,5 +1,4 @@
 from authlib.integrations.flask_oauth2 import AuthorizationServer
-from flask_alembic import Alembic
 from flask_cors import CORS
 from flask_login import LoginManager
 from flask_marshmallow import Marshmallow
@@ -20,7 +19,6 @@ from apigateway.services import (
 )
 
 # Database
-alembic = Alembic()
 db = FlaskSQLAlchemy(model_class=base_model)
 ma = Marshmallow()
 

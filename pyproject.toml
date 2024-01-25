@@ -19,7 +19,7 @@ packages = ["apigateway"]
 dependencies = [
     'adsmutils@git+https://github.com/adsabs/ADSMicroserviceUtils.git@v1.3.0',
     'authlib',
-    'flask-alembic',
+    'alembic',
     'flask-limiter>=2.2.0',
     'flask-marshmallow==0.14.0',
     'flask-security-too',
@@ -32,7 +32,8 @@ dependencies = [
     'kafka-python',
     'flask-cors',
     'flask-talisman',
-    'jsondiff'
+    'jsondiff',
+    sqlalchemy-citext
 ]
 
 [project.urls]

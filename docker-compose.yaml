@@ -2,7 +2,7 @@ version: '3.8'
 services:
   apigateway:
     build: .
-    command: bash -c "flask db upgrade && python wsgi.py"
+    command: bash -c "alembic upgrade head && python wsgi.py"
     ports:
       - "5000:8181"
     depends_on:

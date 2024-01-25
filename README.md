@@ -70,8 +70,11 @@ Database versioning is managed using Flask-Alembic. You can upgrade to the lates
 
 ```bash
 # Upgrade to latest revision
-flask db upgrade
+alembic upgrade <revision>
 
 # Downgrade revision
-flask db downgrade
+alembic downgrade <revision>
+
+# Create a new revision
+alembic revision --autogenerate -m "revision description"
 ```

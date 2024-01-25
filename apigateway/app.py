@@ -21,7 +21,6 @@ def register_extensions(app: Flask):
 
     extensions.db.init_app(app)
     extensions.ma.init_app(app)
-    extensions.alembic.init_app(app)
 
     extensions.cors.init_app(
         app,
