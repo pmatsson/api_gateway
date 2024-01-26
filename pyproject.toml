@@ -33,7 +33,7 @@ dependencies = [
     'flask-cors',
     'flask-talisman',
     'jsondiff',
-    sqlalchemy-citext
+    'sqlalchemy-citext'
 ]
 
 [project.urls]
