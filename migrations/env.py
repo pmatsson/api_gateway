@@ -5,7 +5,6 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from apigateway.config import SQLALCHEMY_DATABASE_URI
 from apigateway.models import base_model
 
 project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -20,9 +19,6 @@ config = context.config
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-
-# Override the sqlalchemy.url value in the .ini file.
-config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URI)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
@@ -60,6 +56,20 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def get_app_config(key):
+    opath = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if opath not in sys.path:
+        sys.path.insert(0, opath)
+
+    from apigateway import app as application
+
+    app = application.create_app()
+
+    with app.app_context() as c:
+        print("Getting actual config for", key, app.config.get(key))
+        return app.config.get(key)
+
+
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
@@ -67,17 +77,21 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    cfg = config.get_section(config.config_ini_section)
+    if "use_flask_db_url" in cfg and cfg["use_flask_db_url"] == "true":
+        cfg["sqlalchemy.url"] = get_app_config("SQLALCHEMY_DATABASE_URI")
 
-    with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+    engine = engine_from_config(cfg, prefix="sqlalchemy.", poolclass=pool.NullPool)
 
+    connection = engine.connect()
+
+    context.configure(connection=connection, target_metadata=target_metadata)
+
+    try:
         with context.begin_transaction():
             context.run_migrations()
+    finally:
+        connection.close()
 
 
 if context.is_offline_mode():
