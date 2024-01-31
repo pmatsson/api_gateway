@@ -138,7 +138,10 @@ class AuthService(GatewayService):
         if token is None:
             token = self._create_temporary_token(client)
             extensions.db.session.add(token)
-            extensions.db.session.commit()
+
+        client.last_activity = datetime.now()
+        extensions.db.session.add(client)
+        extensions.db.session.commit()
 
         return client, token
 
@@ -186,6 +189,7 @@ class AuthService(GatewayService):
                 user_id=current_user.get_id(),
                 ratelimit_multiplier=ratelimit_multiplier,
                 individual_ratelimit_multipliers=individual_ratelimit_multipliers,
+                last_activity=datetime.now(),
             )
             client.set_client_metadata(
                 {"client_name": client_name, "description": client_name, "scope": scope}
@@ -211,6 +215,9 @@ class AuthService(GatewayService):
                 extensions.db.session.add(token)
                 self._logger.info("Created BB client for {email}".format(email=current_user.email))
 
+            client.last_activity = datetime.now()
+            extensions.db.session.add(client)
+
         extensions.db.session.commit()
 
         return client, token
@@ -227,7 +234,10 @@ class AuthService(GatewayService):
         if not current_user.is_anonymous_bootstrap_user:
             raise ValidationError("Only anonymous bootstrap user can create temporary tokens")
 
-        client = OAuth2Client(user_id=current_user.get_id())
+        client = OAuth2Client(
+            user_id=current_user.get_id(),
+            last_activity=datetime.now(),
+        )
 
         client.set_client_metadata(
             {
