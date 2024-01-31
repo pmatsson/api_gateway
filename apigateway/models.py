@@ -132,6 +132,7 @@ class OAuth2Token(base_model, OAuth2TokenMixin):
     client = relationship("OAuth2Client")
     is_personal = sa.Column(sa.Boolean, default=False)
     is_internal = sa.Column(sa.Boolean, default=False)
+    expires_in = sa.Column(sa.BigInteger, nullable=False, default=0)
 
 
 class EmailChangeRequest(base_model):
