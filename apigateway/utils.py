@@ -163,6 +163,20 @@ class ProxyView(View):
         self._remote_base_url = remote_base_url
         self._session = requests.Session()
 
+        self.default_request_timeout = current_app.config.get("DEFAULT_REQUEST_TIMEOUT", 60)
+        self.pool_connections = current_app.config.get("REQUESTS_POOL_CONNECTIONS", 20)
+        self.pool_maxsize = current_app.config.get("REQUESTS_POOL_MAXSIZE", 1000)
+        self.max_retries = current_app.config.get("REQUESTS_MAX_RETRIES", 1)
+
+        http_adapter = requests.adapters.HTTPAdapter(
+            pool_connections=self.pool_connections,
+            pool_maxsize=self.pool_maxsize,
+            max_retries=self.max_retries,
+            pool_block=False,
+        )
+
+        self._session.mount("http://", http_adapter)
+
     def dispatch_request(self, **kwargs) -> Tuple[bytes, int]:
         """
         Dispatches the request to the proxy view.

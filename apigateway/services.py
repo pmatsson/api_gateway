@@ -116,7 +116,7 @@ class AuthService(GatewayService):
             if current_user.is_authenticated:
                 headers.add_header("X-api-uid", current_user.get_id())
             elif "X-api-uid" in request.headers:
-                headers.pop("X-api-uid")
+                headers.remove("X-api-uid")
 
             request.headers = headers
 
