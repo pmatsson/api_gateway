@@ -114,7 +114,7 @@ class AuthService(GatewayService):
             """Adds the X-api-uid header to the request if the user is authenticated."""
             headers = Headers(request.headers.items())
             if current_user.is_authenticated:
-                headers.add_header("X-api-uid", current_user.get_id())
+                headers.add_header("X-api-uid", current_user.id)
             elif "X-api-uid" in request.headers:
                 headers.remove("X-api-uid")
 
