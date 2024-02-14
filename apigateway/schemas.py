@@ -88,6 +88,7 @@ class UserRegisterPostRequestSchema:
     password2: str = field()
     given_name: str = None
     family_name: str = None
+    g_recaptcha_response: str = field(default=None, metadata={"data_key": "g-recaptcha-response"})
 
     @validates_schema
     def validate_passwords_equal(self, data, **kwargs):
