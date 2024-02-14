@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, call
 
 import pytest
+from flask import request
 
 from apigateway.exceptions import ValidationError
 from apigateway.models import OAuth2Client, OAuth2Token, User
@@ -89,6 +90,38 @@ class TestAuthService:
             _, _ = app.auth_service.bootstrap_user(scope="test_scope")
         except ValidationError:
             pytest.fail("Unexpected ValidationError")
+
+    def test_headers_set(self, app, mock_regular_user):
+        _, token = app.auth_service.bootstrap_user()
+
+        @app.route("/test_auth_headers_set")
+        def test_route():
+            pass
+
+        with app.test_request_context(
+            "/test_auth_headers_set",
+            headers={
+                "Authorization": "Bearer " + token.access_token,
+            },
+        ):
+            # Manually call before_request functions
+            for func in app.before_request_funcs[None]:
+                func()
+
+            assert "X-api-uid" in request.headers
+
+    def test_headers_not_set(self, app):
+
+        @app.route("/test_auth_headers_not_set")
+        def test_auth_headers_not_set():
+            pass
+
+        with app.test_request_context("/test_auth_headers_not_set"):
+            # Manually call before_request functions
+            for func in app.before_request_funcs[None]:
+                func()
+
+            assert "X-api-uid" not in request.headers
 
 
 class TestProxyService:

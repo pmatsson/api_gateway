@@ -1,4 +1,5 @@
 """ Module defining API Gateway services. """
+
 import hashlib
 import json
 import logging
@@ -110,11 +111,14 @@ class AuthService(GatewayService):
 
         @app.before_request
         def before_request_hook():
-            """Adds the X-Adsws-Uid header to the request if the user is authenticated."""
+            """Adds the X-api-uid header to the request if the user is authenticated."""
+            headers = Headers(request.headers.items())
             if current_user.is_authenticated:
-                headers = Headers(request.headers.items())
-                headers.add_header("X-Adsws-Uid", current_user.get_id())
-                request.headers = headers
+                headers.add_header("X-api-uid", current_user.get_id())
+            elif "X-api-uid" in request.headers:
+                headers.pop("X-api-uid")
+
+            request.headers = headers
 
     def load_client(self, client_id: str) -> Tuple[OAuth2Client, OAuth2Token]:
         """Loads the OAuth2Client and OAuth2Token for the given client_id.
@@ -674,9 +678,11 @@ class LimiterService(GatewayService, Limiter):
         def inner(func):
             LimitDecorator(
                 self,
-                limit_value=limit_value
-                if limit_value
-                else lambda: self._calculate_limit_value(counts, per_second),
+                limit_value=(
+                    limit_value
+                    if limit_value
+                    else lambda: self._calculate_limit_value(counts, per_second)
+                ),
                 scope=scope if scope else self._scope_func,
                 shared=shared,
                 key_func=key_func if key_func else self._key_func,
@@ -1350,9 +1356,11 @@ class KafkaProducerService(GatewayService):
                     self.get_service_config("REQUEST_TOPIC"),
                     {
                         "user_id": current_user.get_id(),
-                        "client_id": current_token.client_id
-                        if current_token and hasattr(current_token, "client")
-                        else "",
+                        "client_id": (
+                            current_token.client_id
+                            if current_token and hasattr(current_token, "client")
+                            else ""
+                        ),
                         "endpoint": request.endpoint,
                         "method": request.method,
                         "timestamp": datetime.now().isoformat(),
