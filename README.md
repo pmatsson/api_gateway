@@ -66,7 +66,7 @@ python wsgi.py
 
 ### Database versioning
 
-Database versioning is managed using Flask-Alembic. You can upgrade to the latest revision or downgrade to a previous one using the following commands:
+Database versioning is managed using Alembic. You can upgrade to the latest revision or downgrade to a previous one using the following commands:
 
 ```bash
 # Upgrade to latest revision
