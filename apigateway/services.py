@@ -894,7 +894,7 @@ class StorageService(GatewayService):
                 return func(self, *args, **kwargs)
             except (ConnectionError, TimeoutError):
                 self._redis_down = True
-                self._logger.error("Redis is down, falling back to local storage")
+                self._logger.warning("Redis is down, falling back to local storage")
                 return func(self, *args, **kwargs)
             except Exception as ex:
                 self._logger.error("Failed to handle Redis exception", ex)
