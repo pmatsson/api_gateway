@@ -576,7 +576,10 @@ class UserFeedbackView(Resource):
     Forwards a user's feedback to Slack and/or email
     """
 
-    decorators = [extensions.limiter_service.shared_limit("500/600 second")]
+    decorators = [
+        extensions.limiter_service.shared_limit("500/600 second"),
+        extensions.csrf.exempt,
+    ]
 
     def post(self):
         params = get_json_body(request)
