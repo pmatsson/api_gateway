@@ -32,7 +32,7 @@ def send_email(
     recipient: str,
     template: EmailTemplate,
     verification_url: str = "",
-    mail_server: str = "localhost",
+    mail_server: str = None,
 ):
     # Do not send emails if in debug mode
     if current_app.config.get("TESTING", False):
@@ -42,6 +42,9 @@ def send_email(
             )
         )
         return
+
+    if not mail_server:
+        mail_server = current_app.config.get("MAIL_SERVER", "localhost")
 
     message = EmailMessage()
     message["Subject"] = template.subject
