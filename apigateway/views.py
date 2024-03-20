@@ -591,13 +591,13 @@ class UserFeedbackView(Resource):
             return {"message": "Captcha was not verified"}, 403
 
         if not self._is_origin_allowed(params):
-            return {"message": "No origin provided in feedback data"}, 404
+            return {"message": "No origin provided in feedback data"}, 400
 
         email_body, attachments, submitter_email = self._prepare_email_and_attachments(params)
         if not email_body:
-            return {"message": "Unable to generate email body"}, 404
+            return {"message": "Unable to generate email body"}, 500
 
-        if not self._send_email(params, email_body, attachments):
+        if not self._send_email(params, submitter_email, email_body, attachments):
             current_app.logger.error(
                 "Sending of email failed. Feedback data submitted by {0}: {1}".format(
                     submitter_email, params
@@ -757,7 +757,9 @@ class UserFeedbackView(Resource):
 
     def _prepare_attachments(self, params, template):
         attachments = []
-        attachments.append((template["file"], params["new"]))
+
+        if template.get("new", False) or template.get("update", False):
+            attachments.append((template["file"], params["new"]))
 
         if template.get("update", False):
             attachments.append(("original_record.json", params["original"]))
