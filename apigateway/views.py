@@ -614,7 +614,7 @@ class UserFeedbackView(Resource):
             elif slack_response.status_code != 200:
                 return {"message": "Unknown error"}, slack_response.status_code
 
-        return {"message", "success"}, 200
+        return {"message": "success"}, 200
 
     def _verify_captcha(self, params):
         return verify_recaptcha(request) and params.get("g-recaptcha-response", False)
