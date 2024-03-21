@@ -18,22 +18,22 @@ packages = ["apigateway"]
 
 dependencies = [
     'adsmutils@git+https://github.com/adsabs/ADSMicroserviceUtils.git@v1.3.0',
-    'authlib',
-    'alembic',
-    'flask-limiter>=2.2.0',
+    'authlib==1.2.1',
+    'alembic==1.12.0',
+    'flask-limiter==3.5.1',
     'flask-marshmallow==0.14.0',
-    'flask-security-too',
-    'marshmallow-dataclass',
-    'marshmallow-sqlalchemy',
+    'flask-security-too==5.3.3',
+    'marshmallow-dataclass==8.6.0',
+    'marshmallow-sqlalchemy==0.28.2',
     'portalocker==2.8.2',
-    'redis',
-    'sqlalchemy-utils',
-    'Flask-Caching',
-    'kafka-python',
-    'flask-cors',
-    'flask-talisman',
-    'jsondiff',
-    'sqlalchemy-citext'
+    'redis==5.0.1',
+    'sqlalchemy-utils==0.41.1',
+    'Flask-Caching==2.1.0',
+    'kafka-python==2.0.2',
+    'flask-cors==4.0.0',
+    'flask-talisman==1.1.0',
+    'jsondiff==2.0.0',
+    'sqlalchemy-citext==1.8.0'
 ]
 
 [project.urls]
