@@ -66,7 +66,7 @@ def send_feedback_email(
     subject: str,
     body: str,
     attachments: list = None,
-    mail_server: str = "localhost",
+    mail_server: str = None,
 ):
     # Do not send emails if in debug mode
     if current_app.config.get("TESTING", False):
@@ -76,6 +76,9 @@ def send_feedback_email(
             )
         )
         return
+
+    if not mail_server:
+        mail_server = current_app.config.get("MAIL_SERVER", "localhost")
 
     default_email = current_app.config["FEEDBACK_EMAIL"]
     recipient = current_app.config["FEEDBACK_EMAIL_SUBJECT_OVERRIDE"].get(subject, default_email)
