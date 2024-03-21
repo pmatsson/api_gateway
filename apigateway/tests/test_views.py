@@ -20,14 +20,34 @@ class TestBootstrapView:
     def bootstrap(self):
         return views.BootstrapView()
 
-    def test_get_authenticated_user(self, app, bootstrap, mock_regular_user):
+    @pytest.fixture
+    def authenticated_user(self, app):
+        with app.session_scope() as session:
+            user = User()
+            user.id = 123
+            user.active = True
+            user.confirmed_at = datetime.utcnow()
+            user.email = "test@gmail.com"
+            user.password = "valid_password"
+            user.fs_uniquifier = "test_user"
+            session.add(user)
+            session.commit()
+            yield user
+
+        with app.session_scope() as session:
+            session.delete(user)
+            session.commit()
+
+    def test_get_authenticated_user(self, app, bootstrap, mock_regular_user, authenticated_user):
         with app.test_request_context(json={}):
             response, status_code = bootstrap.get()
 
             assert status_code == 200
             assert not bootstrap_response.validate(response)
 
-    def test_get_authenticated_user_with_params(self, app, bootstrap, mock_regular_user):
+    def test_get_authenticated_user_with_params(
+        self, app, bootstrap, mock_regular_user, authenticated_user
+    ):
         req_json = {
             "scope": "test_scope",
             "client_name": "test_client",
@@ -39,7 +59,7 @@ class TestBootstrapView:
 
             assert status_code == 200
             assert not bootstrap_response.validate(response)
-            assert parsed_response["scope"] == req_json["scope"]
+            assert parsed_response.scopes == req_json["scope"]
 
     def test_get_anonymous_user_with_params(self, app, bootstrap, mock_anon_user):
         json = {"scope": "test_scope", "client_name": "test_client", "redirect_uri": "test_uri"}

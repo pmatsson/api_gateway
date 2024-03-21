@@ -60,7 +60,7 @@ class BootstrapGetRequestSchema:
 
 
 @dataclass
-class BootstrapGetResponseSchema(SQLAlchemySchema):
+class BootstrapGetResponseSchema:
     access_token: str = field(default=None)
     refresh_token: str = field(default=None)
     expires_in: str = field(default=None)

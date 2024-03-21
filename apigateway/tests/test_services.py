@@ -273,6 +273,8 @@ class TestLimiterService:
 
     def test_shared_limit_with_limit_value(self, app):
         # Arrange
+        app.limiter_service.clear_limits("*", None)
+
         limit_value = "5/minute"
         decorator = app.limiter_service.shared_limit(limit_value=limit_value)
         counter = 0
