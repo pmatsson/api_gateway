@@ -426,7 +426,7 @@ class ProxyService(GatewayService):
             properties.setdefault("cache", None)
 
             # Create the view
-            rule_name = local_path = os.path.join(deploy_path, remote_path[1:])
+            rule_name = local_path = os.path.join(deploy_path, remote_path.rstrip('/')[1:])
             proxy_view = ProxyView.as_view(rule_name, deploy_path, base_url)
 
             if csrf_exempt:
