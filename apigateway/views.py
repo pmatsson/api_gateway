@@ -777,9 +777,10 @@ class Resources(Resource):
         r[app.name]["base"] = request.script_root
 
         for rule in app.url_map.iter_rules():
-            # Split the rule by '/' and get the first path
-            split_rule = rule.rule.split("/")
-            first_path = split_rule[1] if len(split_rule) > 2 else "general"
+            is_external = rule.endpoint.startswith("/")
+            split_rule = rule.rule[1:].split("/")
+
+            first_path = split_rule[0] if is_external or len(split_rule) > 1 else "general"
 
             # If the first path is not in the dictionary, add it
             if first_path not in r[app.name]:
