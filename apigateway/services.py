@@ -196,7 +196,11 @@ class AuthService(GatewayService):
                 last_activity=datetime.now(),
             )
             client.set_client_metadata(
-                {"client_name": client_name, "description": client_name, "scope": scope}
+                {
+                    "client_name": client_name,
+                    "description": client_name,
+                    "scope": scope or " ".join(self._app.config["USER_DEFAULT_SCOPES"]),
+                }
             )
 
             client.gen_salt()
