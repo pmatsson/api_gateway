@@ -79,7 +79,7 @@ class BootstrapView(Resource):
             "refresh_token": token.refresh_token,
             "expires_in": token.expires_in,
             "token_type": token.token_type,
-            "scopes": token.scope,
+            "scopes": token.scope.split(" ") if token.scope else [],
             "username": token.user.email,
             "anonymous": token.user.is_anonymous_bootstrap_user,
             "client_id": client.client_id,

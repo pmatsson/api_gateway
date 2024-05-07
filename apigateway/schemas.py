@@ -1,11 +1,12 @@
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import List
 
 import marshmallow.validate
 import marshmallow_dataclass
 from citext import CIText
-from flask_marshmallow.sqla import SQLAlchemyAutoSchema, SQLAlchemySchema
+from flask_marshmallow.sqla import SQLAlchemyAutoSchema
 from marshmallow import ValidationError, fields, validates_schema
 from marshmallow.validate import Validator
 from marshmallow_sqlalchemy import ModelConverter
@@ -66,7 +67,7 @@ class BootstrapGetResponseSchema:
     expires_in: str = field(default=None)
     token_type: str = field(default="Bearer")
     username: str = field(default=None)
-    scopes: str = field(default=None)
+    scopes: List[str] = field(default_factory=list)
     anonymous: bool = field(default=None)
     client_id: str = field(default=None)
     client_secret: str = field(default=None)
