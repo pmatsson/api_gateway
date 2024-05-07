@@ -199,7 +199,7 @@ class AuthService(GatewayService):
                 {
                     "client_name": client_name,
                     "description": client_name,
-                    "scope": scope or " ".join(self._app.config["USER_DEFAULT_SCOPES"]),
+                    "scope": scope or " ".join(self._app.config.get("USER_DEFAULT_SCOPES", "")),
                 }
             )
 
@@ -251,7 +251,7 @@ class AuthService(GatewayService):
             {
                 "client_name": self._app.config.get("BOOTSTRAP_CLIENT_NAME", "BB client"),
                 "description": "Anonymous client",
-                "scope": " ".join(current_user.allowed_scopes),
+                "scope": " ".join(self._app.config.get("BOOTSTRAP_SCOPES", "")),
             }
         )
 
