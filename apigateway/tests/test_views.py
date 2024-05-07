@@ -59,7 +59,7 @@ class TestBootstrapView:
 
             assert status_code == 200
             assert not bootstrap_response.validate(response)
-            assert parsed_response.scopes == req_json["scope"]
+            assert parsed_response.scopes == req_json["scope"].split(" ")
 
     def test_get_anonymous_user_with_params(self, app, bootstrap, mock_anon_user):
         json = {"scope": "test_scope", "client_name": "test_client", "redirect_uri": "test_uri"}
