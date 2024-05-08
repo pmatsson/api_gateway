@@ -77,7 +77,7 @@ class BootstrapView(Resource):
         response = {
             "access_token": token.access_token,
             "refresh_token": token.refresh_token,
-            "expires_in": token.expires_in,
+            "expires_at": token.expires_at(),
             "token_type": token.token_type,
             "scopes": token.scope.split(" ") if token.scope else [],
             "username": token.user.email,

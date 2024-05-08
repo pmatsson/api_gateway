@@ -64,7 +64,7 @@ class BootstrapGetRequestSchema:
 class BootstrapGetResponseSchema:
     access_token: str = field(default=None)
     refresh_token: str = field(default=None)
-    expires_in: str = field(default=None)
+    expires_at: str = field(default=None)
     token_type: str = field(default="Bearer")
     username: str = field(default=None)
     scopes: List[str] = field(default_factory=list)

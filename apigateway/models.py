@@ -134,6 +134,12 @@ class OAuth2Token(base_model, OAuth2TokenMixin):
     is_internal = sa.Column(sa.Boolean, default=False)
     expires_in = sa.Column(sa.BigInteger, nullable=False, default=0)
 
+    def expires_at(self):
+        if not self.expires_in:
+            return 0
+
+        return self.issued_at + self.expires_in
+
 
 class EmailChangeRequest(base_model):
     __tablename__ = "email_change_request"
