@@ -111,7 +111,7 @@ class AuthService(GatewayService):
 
         @app.before_request
         def before_request_hook():
-            """Adds the X-api-uid header to the request if the user is authenticated."""
+            """Adds the X-api-uid header to the request if the user is authenticated with a session cookie."""
             headers = Headers(request.headers.items())
             if current_user.is_authenticated:
                 headers.add_header("X-api-uid", current_user.id)
@@ -119,6 +119,16 @@ class AuthService(GatewayService):
                 headers.remove("X-api-uid")
 
             request.headers = headers
+
+        def _token_authenticated(sender, token: OAuth2Token = None, **kwargs):
+            """Adds the X-api-uid header to the request if the user is authenticated with an auth token"""
+
+            if token.user:
+                headers = Headers(request.headers.items())
+                headers.add_header("X-api-uid", token.user.id)
+                request.headers = headers
+
+        token_authenticated.connect(_token_authenticated, weak=False)
 
     def load_client(self, client_id: str) -> Tuple[OAuth2Client, OAuth2Token]:
         """Loads the OAuth2Client and OAuth2Token for the given client_id.
