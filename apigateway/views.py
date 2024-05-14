@@ -33,6 +33,9 @@ from apigateway.utils import (
 
 
 class BootstrapView(Resource):
+
+    decorators = [extensions.auth_service.require_oauth(optional=True)]
+
     def get(self):
         params = schemas.bootstrap_request.load(get_json_body(request))
 
@@ -53,16 +56,19 @@ class BootstrapView(Resource):
             client_id: str = None
             if "oauth_client" in session:
                 client_id = session["oauth_client"]
-            elif hasattr(request, "oauth"):
-                client_id = request.oauth.client_id
+            elif current_token:
+                client_id = current_token.client.client_id
 
             if client_id:
                 client, token = extensions.auth_service.load_client(client_id)
 
-            if not client_id or client.user_id != current_user.get_id():
+            # Check if the client_id is valid and that there is no client/user mismatch
+            if not client_id or (
+                client.user_id != current_user.get_id()
+                and not current_user.is_anonymous_bootstrap_user
+            ):
                 client, token = extensions.auth_service.bootstrap_anonymous_user()
-
-            session["oauth_client"] = client.client_id
+                session["oauth_client"] = client.client_id
 
         else:
             client, token = extensions.auth_service.bootstrap_user(
