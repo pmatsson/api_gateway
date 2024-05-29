@@ -61,11 +61,11 @@ def register_hooks(app: Flask):
     def make_session_permanent():
         session.permanent = True
 
-    @extensions.login_manager.user_loader
+    @app.login_manager.user_loader
     def load_user(user_id):
         return User.query.filter_by(fs_uniquifier=user_id).first()
 
-    @extensions.login_manager.unauthorized_handler
+    @app.login_manager.unauthorized_handler
     def unauthorized():
         """
         flask_login callback when @login_required is not met.
