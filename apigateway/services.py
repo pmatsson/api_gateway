@@ -1211,8 +1211,8 @@ class SecurityService(GatewayService, Security):
         if pbad is not None:
             raise ValueError(", ".join(pbad))
 
+        user = self.datastore.db.session.merge(user)
         user.password = password
-        self.datastore.put(user)
         self.datastore.commit()
 
         return user
@@ -1246,8 +1246,9 @@ class SecurityService(GatewayService, Security):
             User: The updated user object.
         """
         email = self._mail_util.validate(email)
+
+        user = self.datastore.db.session.merge(user)
         user.email = email
-        self.datastore.put(user)
         self.datastore.commit()
 
         return user
