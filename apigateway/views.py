@@ -12,6 +12,7 @@ from flask.sessions import SecureCookieSessionInterface
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_restful import Resource, abort
 from flask_wtf.csrf import generate_csrf
+from werkzeug.security import gen_salt
 
 from apigateway import email_templates as templates
 from apigateway import extensions, schemas
@@ -771,6 +772,130 @@ class UserFeedbackView(Resource):
             attachments.append(("original_record.json", params["original"]))
 
         return attachments
+
+
+class PersonalTokenView(Resource):
+    decorators = [
+        extensions.limiter_service.shared_limit("500/43200 second"),
+        login_required,
+        require_non_anonymous_bootstrap_user,
+    ]
+
+    def get(self):
+        clients = (
+            OAuth2Client.query.filter_by(user_id=current_user.get_id())
+            .order_by(OAuth2Client.client_id_issued_at.desc())
+            .all()
+        )
+
+        client = next((c for c in clients if c.client_name == "ADS API client"), None)
+
+        if not client:
+            return {"message": "No ADS API client found"}, 404
+
+        token = OAuth2Token.query.filter_by(
+            client_id=client.id,
+            user_id=current_user.get_id(),
+        ).first()
+
+        if not token:
+            current_app.logger.error(
+                "No token found for ADS API Client with id {0}. This should not happen!".format(
+                    client.id
+                )
+            )
+            return {"message": "No token found for ADS API client"}, 500
+
+        response = {
+            "access_token": token.access_token,
+            "refresh_token": token.refresh_token,
+            "expires_at": token.expires_at(),
+            "token_type": token.token_type,
+            "scopes": token.scope.split(" ") if token.scope else [],
+            "username": token.user.email,
+            "anonymous": token.user.is_anonymous_bootstrap_user,
+            "client_id": client.client_id,
+            "user_id": current_user.get_id(),
+        }
+
+        return schemas.personal_token_response.dump(response), 200
+
+    def put(self):
+        salt_length = current_app.config.get("OAUTH2_CLIENT_ID_SALT_LEN", 40)
+
+        clients = (
+            OAuth2Client.query.filter_by(user_id=current_user.get_id())
+            .order_by(OAuth2Client.client_id_issued_at.desc())
+            .all()
+        )
+
+        client = next((c for c in clients if c.client_name == "ADS API client"), None)
+
+        with current_app.session_scope() as session:
+            if not client:
+                client = OAuth2Client(
+                    user_id=current_user.get_id(),
+                    last_activity=datetime.now(),
+                )
+                client.set_client_metadata(
+                    {
+                        "client_name": "ADS API client",
+                        "description": "ADS API client",
+                        "scope": " ".join(current_app.config.get("USER_API_DEFAULT_SCOPES", "")),
+                        "is_internal": True,
+                    }
+                )
+                client.gen_salt()
+
+                session.add(client)
+                session.commit()
+
+                token = OAuth2Token(
+                    token_type="bearer",
+                    client_id=client.id,
+                    user_id=client.user_id,
+                    access_token=gen_salt(salt_length),
+                    refresh_token=gen_salt(salt_length),
+                    scope=" ".join(current_app.config.get("USER_API_DEFAULT_SCOPES", "")),
+                    expires_in=(datetime(2050, 1, 1) - datetime.now()).total_seconds(),
+                )
+                session.add(token)
+
+            else:
+                token = (
+                    session.query(OAuth2Token)
+                    .filter_by(
+                        client_id=client.id,
+                        user_id=current_user.get_id(),
+                    )
+                    .first()
+                )
+
+                if not token:
+                    current_app.logger.error(
+                        "No token found for ADS API Client with id {0}. This should not happen!".format(
+                            client.id
+                        )
+                    )
+                    return {"message": "No token found for the ADS API client"}, 500
+
+                token.access_token = gen_salt(salt_length)
+
+            session.commit()
+
+            response = {
+                "access_token": token.access_token,
+                "refresh_token": token.refresh_token,
+                "expires_at": token.expires_at(),
+                "token_type": token.token_type,
+                "scopes": token.scope.split(" ") if token.scope else [],
+                "username": token.user.email,
+                "anonymous": token.user.is_anonymous_bootstrap_user,
+                "client_id": client.client_id,
+                "user_id": current_user.get_id(),
+            }
+
+            return schemas.personal_token_response.dump(response), 200
 
 
 class Resources(Resource):

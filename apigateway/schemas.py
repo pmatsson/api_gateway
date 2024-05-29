@@ -145,6 +145,19 @@ class ClearLimitRequestSchema:
             )
 
 
+@dataclass
+class PersonalTokenViewGetResponseSchema:
+    access_token: str = field(default=None)
+    refresh_token: str = field(default=None)
+    expires_at: str = field(default=None)
+    token_type: str = field(default="Bearer")
+    scopes: List[str] = field(default_factory=list)
+    username: str = field(default=None)
+    anonymous: bool = field(default=None)
+    client_id: str = field(default=None)
+    user_id: str = field(default=None)
+
+
 bootstrap_request = marshmallow_dataclass.class_schema(BootstrapGetRequestSchema)()
 bootstrap_response = marshmallow_dataclass.class_schema(BootstrapGetResponseSchema)()
 user_auth_request = marshmallow_dataclass.class_schema(UserAuthPostRequestSchema)()
@@ -154,3 +167,4 @@ change_email_request = marshmallow_dataclass.class_schema(ChangeEmailRequestSche
 reset_password_request = marshmallow_dataclass.class_schema(ResetPasswordRequestSchema)()
 clear_cache_request = marshmallow_dataclass.class_schema(ClearCacheRequestSchema)()
 clear_limit_request = marshmallow_dataclass.class_schema(ClearLimitRequestSchema)()
+personal_token_response = marshmallow_dataclass.class_schema(PersonalTokenViewGetResponseSchema)()
