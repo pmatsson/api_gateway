@@ -1267,16 +1267,18 @@ class SecurityService(GatewayService, Security):
 
         return self.generate_token(user_id, salt=self.get_service_config("VERIFY_EMAIL_SALT"))
 
-    def generate_password_token(self) -> str:
+    def generate_password_token(self, user_id: str = None) -> str:
         """
         Generate a password reset token for the current user.
 
         Returns:
             str: The password reset token.
         """
-        return self.generate_token(
-            "password_reset", salt=self.get_service_config("VERIFY_PASSWORD_SALT")
-        )
+
+        if user_id is None:
+            user_id = current_user.id
+
+        return self.generate_token(user_id, salt=self.get_service_config("VERIFY_PASSWORD_SALT"))
 
     def generate_token(self, content: str, salt: str):
         """
