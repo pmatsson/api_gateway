@@ -46,7 +46,7 @@ def register_extensions(app: Flask):
     extensions.cache_service.init_app(app)
     extensions.kakfa_producer_service.init_app(app)
     extensions.storage_service.init_app(app, extensions.redis_service)
-    extensions.talisman.init_app(app, force_https=True)
+    extensions.talisman.init_app(app, force_https=False)
     extensions.csrf.init_app(app)
 
 
