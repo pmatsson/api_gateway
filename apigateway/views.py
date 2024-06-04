@@ -12,6 +12,7 @@ from flask.sessions import SecureCookieSessionInterface
 from flask_login import current_user, login_required, login_user, logout_user
 from flask_restful import Resource, abort
 from flask_wtf.csrf import generate_csrf
+from sqlalchemy import or_
 from werkzeug.security import gen_salt
 
 from apigateway import email_templates as templates
@@ -896,6 +897,39 @@ class PersonalTokenView(Resource):
             }
 
             return schemas.personal_token_response.dump(response), 200
+
+
+class UserResolverView(Resource):
+    """Resolves an email or uid into a string formatted user object"""
+
+    decorators = [extensions.auth_service.require_oauth("adsws:internal")]
+
+    def get(self, id):
+        """
+        :param identifier: email address or uid
+        :return: json containing user info or 404
+        """
+
+        try:
+            user_id = int(id)
+        except ValueError:
+            user_id = None
+
+        u = User.query.filter(
+            or_(
+                User.id == user_id,
+                User.email == id,
+                User.fs_uniquifier == id,
+            )
+        ).first()
+
+        if u is None:
+            abort(404)
+
+        return {
+            "id": u.id,
+            "email": u.email,
+        }
 
 
 class Resources(Resource):
