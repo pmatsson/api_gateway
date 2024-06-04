@@ -791,7 +791,7 @@ class PersonalTokenView(Resource):
         client = next((c for c in clients if c.client_name == "ADS API client"), None)
 
         if not client:
-            return {"message": "No ADS API client found"}, 404
+            return {"message": "No ADS API client found"}, 200
 
         token = OAuth2Token.query.filter_by(
             client_id=client.id,
