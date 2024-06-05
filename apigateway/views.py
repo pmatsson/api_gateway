@@ -204,6 +204,20 @@ class UserManagementView(Resource):
 
         return {"message": "success"}, 200
 
+    def put(self, email):
+        with current_app.session_scope() as session:
+            user = session.query(User).filter_by(email=email).first()
+            if user is None:
+                return {"message": "User not found"}, 404
+
+            if user.confirmed_at:
+                return {"message": "User already verified"}, 200
+
+            token = extensions.security_service.generate_email_token(user.id)
+            self._send_welcome_email(token, email)
+
+            return {"message": "success"}, 200
+
     def _send_welcome_email(self, token: str, email: str):
         verification_url = f"{current_app.config['VERIFY_URL']}/register/{token}"
         send_email(

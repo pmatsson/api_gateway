@@ -154,11 +154,14 @@ def register_views(flask_api: Api):
     flask_api.add_resource(views.OAuthProtectedView, "/accounts/protected")
     flask_api.add_resource(views.UserAuthView, "/accounts/user/login")
     flask_api.add_resource(views.LogoutView, "/accounts/user/logout")
-    flask_api.add_resource(views.UserManagementView, "/accounts/user")
+    flask_api.add_resource(
+        views.UserManagementView, "/accounts/user", "/accounts/user/<string:email>/verify"
+    )
     flask_api.add_resource(views.UserResolverView, "/accounts/user/<string:id>")
     flask_api.add_resource(views.PersonalTokenView, "/accounts/user/token")
     flask_api.add_resource(views.ChangePasswordView, "/accounts/user/change-password")
     flask_api.add_resource(views.ChangeEmailView, "/accounts/user/change-email")
+
     flask_api.add_resource(views.VerifyEmailView, "/accounts/verify/<string:token>")
     flask_api.add_resource(
         views.ResetPasswordView, "/accounts/user/reset-password/<string:token_or_email>"
