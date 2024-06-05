@@ -25,7 +25,7 @@ class PasswordValidator(Validator):
 
         if not self.PASSWORD_REGEX.match(value):
             raise ValidationError(
-                "Password must contain at least one uppercase letter and one digit"
+                "Password must contain at least one uppercase letter, one lowercase letter, and one number"
             )
 
         return value
