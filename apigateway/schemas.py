@@ -17,7 +17,7 @@ from apigateway.models import User
 class PasswordValidator(Validator):
     """Validate a password."""
 
-    PASSWORD_REGEX = re.compile(r"^(?=.*[A-Z])(?=.*\d).+$")
+    PASSWORD_REGEX = re.compile(r"^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).+$")
 
     def __call__(self, value: str) -> str:
         if len(value) < 8:
