@@ -189,6 +189,18 @@ def create_app(**config):
         template_folder="templates",
         local_config=config,
     )
+
+    # old baggage... Consul used to store keys in hexadecimal form
+    # so the production/staging databases both convert that into raw bytes
+    # but those raw bytes were non-ascii chars (unsafe to pass through
+    # env vars). So we must continue converting hex ...
+    if app.config.get("SECRET_KEY", None):
+        try:
+            app.config["SECRET_KEY"] = bytes.fromhex(app.config["SECRET_KEY"])
+            app.logger.warning("Converted SECRET_KEY from hex format into bytes")
+        except ValueError:
+            app.logger.warning("Most likely the SECRET_KEY is not in hex format")
+
     flask_api = Api(app)
     register_verbose_exception_logging(app)
     register_extensions(app)

@@ -54,7 +54,7 @@ LOG_STDOUT = False
 # Database
 SQLALCHEMY_DATABASE_URI = "postgresql://user:password@db:5432/gateway"
 SQLALCHEMY_TRACK_MODIFICATIONS = False
-SECRET_KEY = environ.get("PROXY_SECRET_KEY", "secret")
+SECRET_KEY = environ.get("PROXY_SECRET_KEY", "736563726574")
 
 # Auth
 OAUTH2_CLIENT_ID_SALT_LEN = 40
