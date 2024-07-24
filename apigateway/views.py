@@ -95,6 +95,8 @@ class BootstrapView(Resource):
             "client_secret": client.client_secret,
             "ratelimit": client.ratelimit_multiplier,
             "individual_ratelimits": client.individual_ratelimit_multipliers,
+            "given_name": token.user.given_name,
+            "family_name": token.user.family_name,
         }
         return schemas.bootstrap_response.dump(response), 200
 

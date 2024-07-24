@@ -74,6 +74,8 @@ class BootstrapGetResponseSchema:
     ratelimit: float = field(default=None)
     client_name: str = field(default=None)
     individual_ratelimits: dict = field(default=None)
+    given_name: str = field(default=None)
+    family_name: str = field(default=None)
 
 
 @dataclass
