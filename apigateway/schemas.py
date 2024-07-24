@@ -127,6 +127,12 @@ class ResetPasswordRequestSchema:
 
 
 @dataclass
+class UpdateUserRequestSchema:
+    given_name: str = None
+    family_name: str = None
+
+
+@dataclass
 class ClearCacheRequestSchema:
     key: str = field()
     parameters: dict = None
@@ -163,6 +169,7 @@ bootstrap_response = marshmallow_dataclass.class_schema(BootstrapGetResponseSche
 user_auth_request = marshmallow_dataclass.class_schema(UserAuthPostRequestSchema)()
 user_register_request = marshmallow_dataclass.class_schema(UserRegisterPostRequestSchema)()
 change_password_request = marshmallow_dataclass.class_schema(ChangePasswordRequestSchema)()
+update_user_request = marshmallow_dataclass.class_schema(UpdateUserRequestSchema)()
 change_email_request = marshmallow_dataclass.class_schema(ChangeEmailRequestSchema)()
 reset_password_request = marshmallow_dataclass.class_schema(ResetPasswordRequestSchema)()
 clear_cache_request = marshmallow_dataclass.class_schema(ClearCacheRequestSchema)()

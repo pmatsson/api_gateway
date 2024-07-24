@@ -204,28 +204,16 @@ class UserManagementView(Resource):
 
         return {"message": "success"}, 200
 
-    def put(self, email):
+    @login_required
+    @require_non_anonymous_bootstrap_user
+    def put(self):
+        params = schemas.update_user_request.load(get_json_body(request))
+
         with current_app.session_scope() as session:
-            user = session.query(User).filter_by(email=email).first()
-            if user is None:
-                return {"message": "User not found"}, 404
-
-            if user.confirmed_at:
-                return {"message": "User already verified"}, 200
-
-            token = extensions.security_service.generate_email_token(user.id)
-            self._send_welcome_email(token, email)
-
-            return {"message": "success"}, 200
-
-    def _send_welcome_email(self, token: str, email: str):
-        verification_url = f"{current_app.config['VERIFY_URL']}/register/{token}"
-        send_email(
-            sender=current_app.config["MAIL_DEFAULT_SENDER"],
-            recipient=email,
-            template=templates.WelcomeVerificationEmail,
-            verification_url=verification_url,
-        )
+            user: User = session.query(User).filter_by(fs_uniquifier=current_user.get_id()).first()
+            user.given_name = params.given_name or user.given_name
+            user.family_name = params.family_name or user.family_name
+            session.commit()
 
 
 class LogoutView(Resource):
@@ -410,6 +398,29 @@ class VerifyEmailView(Resource):
             login_user(user)
 
             return {"message": "success"}, 200
+
+    def put(self, email):
+        with current_app.session_scope() as session:
+            user = session.query(User).filter_by(email=email).first()
+            if user is None:
+                return {"message": "User not found"}, 404
+
+            if user.confirmed_at:
+                return {"message": "User already verified"}, 200
+
+            token = extensions.security_service.generate_email_token(user.id)
+            self._send_welcome_email(token, email)
+
+            return {"message": "success"}, 200
+
+    def _send_welcome_email(self, token: str, email: str):
+        verification_url = f"{current_app.config['VERIFY_URL']}/register/{token}"
+        send_email(
+            sender=current_app.config["MAIL_DEFAULT_SENDER"],
+            recipient=email,
+            template=templates.WelcomeVerificationEmail,
+            verification_url=verification_url,
+        )
 
 
 class ChacheManagementView(Resource):
