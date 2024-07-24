@@ -630,14 +630,19 @@ class UserFeedbackView(Resource):
         if not email_body:
             return {"message": "Unable to generate email body"}, 500
 
-        if not self._send_email(params, submitter_email, email_body, attachments):
+        # For associated articles append the relationship type to the subject
+        subject = params.get("_subject")
+        if subject == "Associated Articles":
+            subject = "{0} ({1})".format(subject, params.get("relationship"))
+
+        if not self._send_email(params, submitter_email, subject, email_body, attachments):
             current_app.logger.error(
                 "Sending of email failed. Feedback data submitted by {0}: {1}".format(
                     submitter_email, params
                 )
             )
 
-        slack_data = self._prepare_slack_data(params, email_body)
+        slack_data = self._prepare_slack_data(params, subject, email_body)
         if slack_data:
             slack_response = self._post_to_slack(slack_data)
             if "Slack API" in slack_response.text:
@@ -655,12 +660,12 @@ class UserFeedbackView(Resource):
     def _is_origin_allowed(self, params):
         return params.get("origin", None) in current_app.config["FEEDBACK_ALLOWED_ORIGINS"]
 
-    def _send_email(self, params, submitter_email, email_body, attachments):
+    def _send_email(self, params, submitter_email, subject, email_body, attachments):
         try:
             send_feedback_email(
                 params.get("name", "TownCrier"),
                 submitter_email,
-                params.get("_subject"),
+                subject,
                 email_body,
                 attachments,
             )
@@ -712,14 +717,12 @@ class UserFeedbackView(Resource):
 
         return email_body, attachments, submitter_email
 
-    def _prepare_slack_data(self, params, email_body):
+    def _prepare_slack_data(self, params, subject, email_body):
         forms_origin = current_app.config["FEEDBACK_FORMS_ORIGIN"]
         is_origin_feedback_form = params.get("origin") == forms_origin
 
         text = (
-            'Received data from feedback form "{0}" from {1}'.format(
-                params.get("_subject"), params.get("email")
-            )
+            'Received data from feedback form "{0}" from {1}'.format(subject, params.get("email"))
             if is_origin_feedback_form
             else "```Incoming Feedback```\n" + email_body
         )
