@@ -217,6 +217,17 @@ class UserManagementView(Resource):
             user.family_name = params.family_name or user.family_name
             session.commit()
 
+        return {"message": "success"}, 200
+
+    def _send_welcome_email(self, token: str, email: str):
+        verification_url = f"{current_app.config['VERIFY_URL']}/register/{token}"
+        send_email(
+            sender=current_app.config["MAIL_DEFAULT_SENDER"],
+            recipient=email,
+            template=templates.WelcomeVerificationEmail,
+            verification_url=verification_url,
+        )
+
 
 class LogoutView(Resource):
     """Logs out the current user"""

@@ -1120,7 +1120,8 @@ class SecurityService(GatewayService, Security):
             "SECURITY_PASSWORD_HASH", self.get_service_config("PASSWORD_HASH", "pbkdf2_sha512")
         )
         app.config.setdefault(
-            "SECURITY_PASSWORD_SALT", self.get_service_config("VERIFY_PASSWORD_SALT")
+            "SECURITY_PASSWORD_SALT",
+            self.get_service_config("PASSWORD_SALT", app.config.get("SECRET_KEY")),
         )
         app.config.setdefault("SECURITY_STATIC_FOLDER", None)
 
