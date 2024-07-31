@@ -30,6 +30,8 @@ from apigateway.utils import (
     require_non_anonymous_bootstrap_user,
     send_email,
     send_feedback_email,
+    send_password_reset_email,
+    send_welcome_email,
     verify_recaptcha,
 )
 
@@ -116,6 +118,20 @@ class UserAuthView(Resource):
             if not user.confirmed_at:
                 abort(401, message="The account has not been verified")
 
+            try:
+                schemas.PasswordValidator()(params.password)
+            except:  # noqa
+                token: str = extensions.security_service.generate_password_token()
+                send_password_reset_email(token, user.email)
+
+                abort(
+                    422,
+                    message=(
+                        "Your password does not meet the new requirements. "
+                        "An email has been sent to you with instructions on how to reset your password."
+                    ),
+                )
+
             if current_user.is_authenticated:
                 logout_user()
 
@@ -189,7 +205,7 @@ class UserManagementView(Resource):
             )
 
             token = extensions.security_service.generate_email_token(user.id)
-            self._send_welcome_email(token, user.email)
+            send_welcome_email(token, user.email)
 
             return {"message": "success"}, 200
         except ValueError as e:
@@ -218,15 +234,6 @@ class UserManagementView(Resource):
             session.commit()
 
         return {"message": "success"}, 200
-
-    def _send_welcome_email(self, token: str, email: str):
-        verification_url = f"{current_app.config['VERIFY_URL']}/register/{token}"
-        send_email(
-            sender=current_app.config["MAIL_DEFAULT_SENDER"],
-            recipient=email,
-            template=templates.WelcomeVerificationEmail,
-            verification_url=verification_url,
-        )
 
 
 class LogoutView(Resource):
@@ -277,7 +284,7 @@ class ResetPasswordView(Resource):
             self._delete_existing_password_change_requests(session, user.id)
             self._create_password_change_request(session, token, user.id)
 
-            self._send_password_reset_email(token, token_or_email)
+            send_password_reset_email(token, token_or_email)
 
             return {"message": "success"}, 200
 
@@ -312,15 +319,6 @@ class ResetPasswordView(Resource):
 
         session.add(password_change_request)
         session.commit()
-
-    def _send_password_reset_email(self, token: str, email: str):
-        verification_url = f"{current_app.config['VERIFY_URL']}/reset-password/{token}"
-        send_email(
-            sender=current_app.config["MAIL_DEFAULT_SENDER"],
-            recipient=email,
-            template=templates.PasswordResetEmail,
-            verification_url=verification_url,
-        )
 
 
 class ChangeEmailView(Resource):
@@ -422,18 +420,9 @@ class VerifyEmailView(Resource):
                 return {"message": "User already verified"}, 200
 
             token = extensions.security_service.generate_email_token(user.id)
-            self._send_welcome_email(token, email)
+            send_welcome_email(token, email)
 
             return {"message": "success"}, 200
-
-    def _send_welcome_email(self, token: str, email: str):
-        verification_url = f"{current_app.config['VERIFY_URL']}/register/{token}"
-        send_email(
-            sender=current_app.config["MAIL_DEFAULT_SENDER"],
-            recipient=email,
-            template=templates.WelcomeVerificationEmail,
-            verification_url=verification_url,
-        )
 
 
 class ChacheManagementView(Resource):

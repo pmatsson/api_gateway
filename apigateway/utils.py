@@ -12,7 +12,11 @@ from flask import Request, current_app, request
 from flask.views import View
 from flask_login import current_user
 
-from apigateway.email_templates import EmailTemplate
+from apigateway.email_templates import (
+    EmailTemplate,
+    PasswordResetEmail,
+    WelcomeVerificationEmail,
+)
 from apigateway.exceptions import Oauth2HttpError
 
 
@@ -268,3 +272,23 @@ def make_json_diff(original: str, updated: str):
         results.append(">>>>\n")
 
     return "\n".join(results)
+
+
+def send_password_reset_email(token: str, email: str):
+    verification_url = f"{current_app.config['VERIFY_URL']}/reset-password/{token}"
+    send_email(
+        sender=current_app.config["MAIL_DEFAULT_SENDER"],
+        recipient=email,
+        template=PasswordResetEmail,
+        verification_url=verification_url,
+    )
+
+
+def send_welcome_email(token: str, email: str):
+    verification_url = f"{current_app.config['VERIFY_URL']}/register/{token}"
+    send_email(
+        sender=current_app.config["MAIL_DEFAULT_SENDER"],
+        recipient=email,
+        template=WelcomeVerificationEmail,
+        verification_url=verification_url,
+    )
