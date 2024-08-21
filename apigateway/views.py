@@ -882,7 +882,7 @@ class PersonalTokenView(Resource):
                 session.commit()
 
                 token = OAuth2Token(
-                    token_type="bearer",
+                    token_type="Bearer",
                     client_id=client.id,
                     user_id=client.user_id,
                     access_token=gen_salt(salt_length),
