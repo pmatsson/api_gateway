@@ -163,3 +163,23 @@ def mock_add_url_rule(app):
 def mock_proxy_view():
     with patch("flask.views.View.as_view", return_value=MagicMock()) as mock_view:
         yield mock_view
+
+
+@pytest.fixture()
+def mock_add_arguments():
+    with patch("argparse.ArgumentParser.parse_args") as mock_args:
+        mock_args.return_value.user_email = "test@gmail.com"
+        mock_args.return_value.description = "Test Description"
+        mock_args.return_value.name = "Test OAuth Client"
+        mock_args.return_value.create_user = False
+        mock_args.return_value.scopes = ["user", "api"]
+        mock_args.return_value.is_personal = False
+        yield mock_args
+
+@pytest.fixture()
+def mock_simple_token(): 
+    mock_token = MagicMock()
+    mock_token.access_token = "access_token"
+    mock_token.refresh_token = "refresh_token"
+    mock_token.scopes = ["user", "api"]
+    return mock_token
