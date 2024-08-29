@@ -28,6 +28,7 @@ from apigateway.utils import (
     get_json_body,
     make_json_diff,
     require_non_anonymous_bootstrap_user,
+    send_account_registration_attempt_email,
     send_email,
     send_feedback_email,
     send_password_reset_email,
@@ -191,8 +192,11 @@ class UserManagementView(Resource):
 
         user = User.query.filter_by(email=params.email).first()
         if user is not None:
-            error_message = f"An account is already registered for {params.email}"
-            return {"error": error_message}, 409
+            send_account_registration_attempt_email(params.email)
+            current_app.logger.warning(
+                "Registration attempt for existing user {0}".format(params.email)
+            )
+            return {"message": "success"}, 200
 
         try:
             user: User = extensions.security_service.create_user(
@@ -269,22 +273,20 @@ class ResetPasswordView(Resource):
         with current_app.session_scope() as session:
             user: User = session.query(User).filter_by(email=token_or_email).first()
 
-            if user is None:
-                return {"error": "no such user exists"}, 404
+            if user is not None:
+                if user.is_anonymous_bootstrap_user:
+                    return {"error": "cannot reset password for anonymous bootstrap user"}, 403
 
-            if user.is_anonymous_bootstrap_user:
-                return {"error": "cannot reset password for anonymous bootstrap user"}, 403
+                if not user.confirmed_at:
+                    return {
+                        "error": "this email was never verified. It will be deleted from out database within a day"
+                    }, 403
 
-            if not user.confirmed_at:
-                return {
-                    "error": "this email was never verified. It will be deleted from out database within a day"
-                }, 403
+                token: str = extensions.security_service.generate_password_token()
+                self._delete_existing_password_change_requests(session, user.id)
+                self._create_password_change_request(session, token, user.id)
 
-            token: str = extensions.security_service.generate_password_token()
-            self._delete_existing_password_change_requests(session, user.id)
-            self._create_password_change_request(session, token, user.id)
-
-            send_password_reset_email(token, token_or_email)
+                send_password_reset_email(token, token_or_email)
 
             return {"message": "success"}, 200
 

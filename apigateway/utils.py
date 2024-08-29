@@ -13,6 +13,7 @@ from flask.views import View
 from flask_login import current_user
 
 from apigateway.email_templates import (
+    AccountRegistrationAttemptEmail,
     EmailTemplate,
     PasswordResetEmail,
     WelcomeVerificationEmail,
@@ -291,4 +292,12 @@ def send_welcome_email(token: str, email: str):
         recipient=email,
         template=WelcomeVerificationEmail,
         verification_url=verification_url,
+    )
+
+
+def send_account_registration_attempt_email(email: str):
+    send_email(
+        sender=current_app.config["MAIL_DEFAULT_SENDER"],
+        recipient=email,
+        template=AccountRegistrationAttemptEmail,
     )
