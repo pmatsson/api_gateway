@@ -481,6 +481,7 @@ class ProxyService(GatewayService):
                 endpoint=local_path,
                 view_func=proxy_view,
                 methods=properties["methods"],
+                provide_automatic_options=True,
             )
 
     def _fetch_resource_document(self, base_url: str) -> dict:
