@@ -70,13 +70,13 @@ class BootstrapView(Resource):
                     client, token = extensions.auth_service.bootstrap_anonymous_user()
                     session["oauth_client"] = client.client_id
 
-        # Check if the client_id is valid and that there is no client/user mismatch
-        elif not client_id or (
-            client.user_id != current_user.get_id()
-            and not current_user.is_anonymous_bootstrap_user
-        ):
-            client, token = extensions.auth_service.bootstrap_anonymous_user()
-            session["oauth_client"] = client.client_id
+            # Check if the client_id is valid and that there is no client/user mismatch
+            elif not client_id or (
+                client.user_id != current_user.get_id()
+                and not current_user.is_anonymous_bootstrap_user
+            ):
+                client, token = extensions.auth_service.bootstrap_anonymous_user()
+                session["oauth_client"] = client.client_id
 
         else:
             client, token = extensions.auth_service.bootstrap_user(
