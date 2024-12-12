@@ -149,7 +149,7 @@ class AuthService(GatewayService):
 
         token = OAuth2Token.query.filter_by(client_id=client.id).first()
 
-        if token is None:
+        if token is None or token.is_expired():
             token = self._create_temporary_token(client)
             extensions.db.session.add(token)
 
